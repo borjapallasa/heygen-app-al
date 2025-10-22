@@ -1,71 +1,65 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useAppState } from "@/src/state/AppStateProvider";
-import { getStatusPlaceholder } from "@/src/lib/utils";
 
-export default function useHeygenVideos() {
+type Group = { id: string; name: string; image?: string; initials?: string; color?: string; };
+
+function toStartCase(str?: string) {
+  if (!str) return "";
+  return str
+    .toLowerCase()
+    .split(/\s+/)
+    .filter(Boolean)
+    .map(w => w[0].toUpperCase() + w.slice(1))
+    .join(" ");
+}
+
+function getInitials(name?: string) {
+  if (!name) return "";
+  return name.trim().split(/\s+/).map(w => w[0]).filter(Boolean).join("").toUpperCase().slice(0,2);
+}
+
+export default function useHeygenGroups() {
   const { client } = useAppState();
-  const [videos, setVideos] = useState<any[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [loadingMore, setLoadingMore] = useState(false);
-  const [token, setToken] = useState<string | null>(null);
+  const palette = useMemo(() => [
+    "bg-blue-500","bg-purple-500","bg-pink-500","bg-green-500","bg-orange-500",
+    "bg-red-500","bg-yellow-500","bg-indigo-500","bg-teal-500",
+  ], []);
+  const randomColor = () => palette[Math.floor(Math.random() * palette.length)];
+
+  const [groups, setGroups] = useState<Group[]>([]);
+  const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
 
-  async function withThumbs(list: any[], signal?: AbortSignal) {
-    const results = [];
-    for (const v of list) {
-      try {
-        const json = await client!.videoStatus(v.id, signal);
-        const t = json?.data?.thumbnail_url || null;
-        results.push({ ...v, thumb: t || v.thumb || getStatusPlaceholder(v.status) });
-      } catch {
-        results.push({ ...v, thumb: v.thumb || getStatusPlaceholder(v.status) });
-      }
-    }
-    return results;
-  }
-
   useEffect(() => {
+    // no client? do nothing (no fetch)
     if (!client) return;
-    const ctl = new AbortController();
-    setLoading(true); setError(null);
-    client.listVideos({ limit: '50' }, ctl.signal)
-      .then(async (json) => {
-        const list = json?.data?.videos || [];
-        const normalized = list.map((v: any) => ({
-          id: v.video_id,
-          title: v.video_title || 'Untitled',
-          status: (v.status || '').toLowerCase(),
-          createdAt: v.created_at,
-          type: v.type || 'GENERATED',
-          thumb: null,
-        }));
-        setVideos(await withThumbs(normalized, ctl.signal));
-        setToken(json?.data?.token || null);
-      })
-      .catch((e) => { if (e?.name !== 'AbortError') setError(e.message || 'Failed to fetch videos'); })
-      .finally(() => setLoading(false));
-    return () => ctl.abort();
-  }, [client]);
+    const ctrl = new AbortController();
+    const { signal } = ctrl;
 
-  async function loadMore() {
-    if (!client || !token || loadingMore) return;
-    const ctl = new AbortController();
-    setLoadingMore(true);
-    try {
-      const json = await client.listVideos({ limit: '50', token }, ctl.signal);
-      const list = json?.data?.videos || [];
-      const normalized = list.map((v: any) => ({
-        id: v.video_id, title: v.video_title || 'Untitled',
-        status: (v.status || '').toLowerCase(), createdAt: v.created_at, type: v.type || 'GENERATED', thumb: null,
-      }));
-      const extra = await withThumbs(normalized, ctl.signal);
-      setVideos(prev => [...prev, ...extra]);
-      setToken(json?.data?.token || null);
-    } catch (e: any) {
-      if (e?.name !== 'AbortError') setError(e.message || 'Failed to fetch videos');
-    } finally { setLoadingMore(false); }
-  }
+    (async () => {
+      setLoading(true);
+      setError(null);
+      try {
+        const data = await client.json(client.endpoints.avatarGroupList, { signal });
+        const raw = data?.data?.avatar_group_list || data?.data?.avatars || [];
+        const mapped: Group[] = (Array.isArray(raw) ? raw : []).map((it: any) => {
+          const id = it.id || it.avatar_id;
+          const rawName = it.name || it.avatar_name || "Unnamed";
+          const name = toStartCase(rawName);
+          const image = it.preview_image || it.preview_image_url || it.preview_video_url || "";
+          return { id, name, image, initials: getInitials(name), color: randomColor() };
+        });
+        setGroups(mapped);
+      } catch (e: any) {
+        if (e?.name !== "AbortError") setError(e?.message || "Failed to fetch avatar groups");
+      } finally {
+        setLoading(false);
+      }
+    })();
 
-  return { videos, loading, error, token, loadingMore, loadMore };
+    return () => ctrl.abort();
+  }, [client]); // rerun only when key/client changes
+
+  return { groups, loading, error };
 }
