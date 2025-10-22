@@ -1,137 +1,105 @@
-// 'use client';
-import { useEffect, useMemo, useRef, useState } from 'react';
+"use client";
+import { useEffect, useState } from "react";
+import { useAppState } from "@/src/state/AppStateProvider";
 
-/**
- * Small helper that only fires when apiKey exists.
- */
-async function fetchJSON(url, apiKey, opts = {}) {
-  if (!apiKey) throw new Error('Missing HeyGen API key');
-  const res = await fetch(url, {
-    ...opts,
-    headers: {
-      accept: 'application/json',
-      'x-api-key': apiKey,
-      ...(opts.headers || {}),
-    },
-  });
-  if (!res.ok) {
-    const text = await res.text().catch(() => '');
-    throw new Error(`${opts.method || 'GET'} ${url} failed: ${res.status} ${text}`);
-  }
-  return res.json();
-}
+const BATCH = 8;
 
-const HEYGEN = {
-  videosList: 'https://api.heygen.com/v1/video.list',
-  videoStatus: (id) => `https://api.heygen.com/v1/video_status.get?video_id=${id}`,
-};
-
-/**
- * useHeygenVideos
- * - paginates 50-by-50
- * - fetches thumbnails via video_status.get (batched)
- *
- * @param {string|null} apiKey  pass the user-provided key; if falsy, the hook stays idle
- */
-export default function useHeygenVideos(apiKey) {
-  const [videos, setVideos] = useState([]);
-  const [token, setToken] = useState(null);
-  const [loading, setLoading] = useState(Boolean(apiKey)); // start loading only if we have a key
+export default function useHeygenVideos() {
+  const { client } = useAppState();
+  const [videos, setVideos] = useState<any[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [token, setToken] = useState<string | null>(null);
   const [loadingMore, setLoadingMore] = useState(false);
-  const [error, setError] = useState(null);
 
-  // simple placeholder depending on status
-  const statusPlaceholder = (status) => {
-    const ok = String(status || '').toLowerCase() === 'completed';
-    return ok
-      ? 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 9"><rect width="16" height="9" fill="%23e2e8f0"/></svg>'
-      : 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 9"><rect width="16" height="9" fill="%23fee2e2"/></svg>';
-  };
-
-  async function fetchThumbsBatched(items, signal, size = 8) {
-    const out = [];
-    for (let i = 0; i < items.length; i += size) {
-      const batch = items.slice(i, i + size);
-      const done = await Promise.all(
-        batch.map(async (v) => {
-          try {
-            const json = await fetchJSON(HEYGEN.videoStatus(v.id), apiKey, { signal });
-            const t = json?.data?.thumbnail_url || null;
-            return { ...v, thumb: t || v.thumb || statusPlaceholder(v.status) };
-          } catch {
-            return { ...v, thumb: v.thumb || statusPlaceholder(v.status) };
-          }
-        })
-      );
-      out.push(...done);
-    }
-    return out;
-  }
-
-  // initial load: only when apiKey is present
+  // initial load
   useEffect(() => {
-    if (!apiKey) {
-      // reset to idle when key is missing/cleared
-      setVideos([]);
-      setToken(null);
-      setError(null);
-      setLoading(false);
-      return;
-    }
-
-    const controller = new AbortController();
-    const { signal } = controller;
+    if (!client) return; // no key, no fetch
+    const ctrl = new AbortController();
+    const { signal } = ctrl;
 
     (async () => {
       setLoading(true);
       setError(null);
       try {
-        const params = new URLSearchParams({ limit: '50' });
-        const json = await fetchJSON(`${HEYGEN.videosList}?${params}`, apiKey, { signal });
+        const params = new URLSearchParams({ limit: "50" });
+        const base = client.endpoints.videosList + "?" + params.toString();
+        const json = await client.json(base, { signal });
         const list = json?.data?.videos || [];
-        const normalized = list.map((v) => ({
+        const normalized = list.map((v: any) => ({
           id: v.video_id,
-          title: v.video_title || 'Untitled',
-          status: (v.status || '').toLowerCase(),
+          title: v.video_title || "Untitled",
+          status: String(v.status || "").toLowerCase(),
           createdAt: v.created_at,
-          type: v.type || 'GENERATED',
+          type: v.type || "GENERATED",
           thumb: null,
         }));
-        const withThumbs = await fetchThumbsBatched(normalized, signal);
-        setVideos(withThumbs);
+
+        // thumbnails (batched)
+        const out: any[] = [];
+        for (let i=0; i<normalized.length; i += BATCH) {
+          const batch = normalized.slice(i, i+BATCH);
+          const fetched = await Promise.all(
+            batch.map(async (item) => {
+              try {
+                const s = await client.json(client.endpoints.videoStatus(item.id), { signal });
+                return { ...item, thumb: s?.data?.thumbnail_url || null };
+              } catch { return item; }
+            })
+          );
+          out.push(...fetched);
+        }
+
+        setVideos(out);
         setToken(json?.data?.token || null);
-      } catch (e) {
-        if (e?.name !== 'AbortError') setError(e.message || 'Failed to fetch videos');
+      } catch (e: any) {
+        if (e?.name !== "AbortError") setError(e?.message || "Failed to fetch videos");
       } finally {
         setLoading(false);
       }
     })();
 
-    return () => controller.abort();
-  }, [apiKey]); // refetch when key changes
+    return () => ctrl.abort();
+  }, [client]);
 
   async function loadMore() {
-    if (!apiKey || !token || loadingMore) return;
-    const controller = new AbortController();
-    const { signal } = controller;
+    if (!client || !token || loadingMore) return;
+    const ctrl = new AbortController();
+    const { signal } = ctrl;
+
     setLoadingMore(true);
     try {
-      const params = new URLSearchParams({ limit: '50', token });
-      const json = await fetchJSON(`${HEYGEN.videosList}?${params}`, apiKey, { signal });
+      const params = new URLSearchParams({ limit: "50", token });
+      const base = client.endpoints.videosList + "?" + params.toString();
+      const json = await client.json(base, { signal });
       const list = json?.data?.videos || [];
-      const normalized = list.map((v) => ({
+      const normalized = list.map((v: any) => ({
         id: v.video_id,
-        title: v.video_title || 'Untitled',
-        status: (v.status || '').toLowerCase(),
+        title: v.video_title || "Untitled",
+        status: String(v.status || "").toLowerCase(),
         createdAt: v.created_at,
-        type: v.type || 'GENERATED',
+        type: v.type || "GENERATED",
         thumb: null,
       }));
-      const withThumbs = await fetchThumbsBatched(normalized, signal);
-      setVideos((prev) => [...prev, ...withThumbs]);
+
+      const out: any[] = [];
+      for (let i=0; i<normalized.length; i += BATCH) {
+        const batch = normalized.slice(i, i+BATCH);
+        const fetched = await Promise.all(
+          batch.map(async (item) => {
+            try {
+              const s = await client.json(client.endpoints.videoStatus(item.id), { signal });
+              return { ...item, thumb: s?.data?.thumbnail_url || null };
+            } catch { return item; }
+          })
+        );
+        out.push(...fetched);
+      }
+
+      setVideos(prev => [...prev, ...out]);
       setToken(json?.data?.token || null);
-    } catch (e) {
-      if (e?.name !== 'AbortError') setError(e.message || 'Failed to fetch more videos');
+    } catch (e: any) {
+      if (e?.name !== "AbortError") setError(e?.message || "Failed to load more");
     } finally {
       setLoadingMore(false);
     }
