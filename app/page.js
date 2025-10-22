@@ -1,11 +1,11 @@
 import dynamic from "next/dynamic";
-
-// IMPORTANT: path must match your repo exactly (case-sensitive on Vercel)
-const AvatarGroupBubbles = dynamic(
-  () => import("../src/components/AvatarGroupBubbles.jsx"),
-  { ssr: false }
-);
+const AppRoot = dynamic(() => import("../src/components/AppRoot"), { ssr: false });
+import { AppStateProvider } from "../src/state/AppStateProvider";
 
 export default function Page() {
-  return <AvatarGroupBubbles />;
+  return (
+    <AppStateProvider>
+      <AppRoot />
+    </AppStateProvider>
+  );
 }
