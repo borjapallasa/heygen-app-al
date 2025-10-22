@@ -1,4 +1,5 @@
-// --- begin: AvatarGroupBubbles.jsx ---
+"use client";
+
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Plus,
