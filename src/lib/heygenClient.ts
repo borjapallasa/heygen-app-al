@@ -1,35 +1,24 @@
-import { HEYGEN } from './constants';
+export function createHeygenClient(apiKey: string) {
+  const endpoints = {
+    logo: "https://app.heygen.com/icons/heygen/wordmark/svg/HeyGen_Logo_Prism_Black.svg",
+    avatarGroupList: "https://api.heygen.com/v2/avatar_group.list?include_public=false",
+    groupAvatars: (groupId: string) => `https://api.heygen.com/v2/avatar_group/${groupId}/avatars`,
+    videosList: "https://api.heygen.com/v1/video.list",
+    videoStatus: (id: string) => `https://api.heygen.com/v1/video_status.get?video_id=${id}`,
+  } as const;
 
-export type HeygenClient = ReturnType<typeof createHeygenClient>;
-
-export function createHeygenClient(apiKey: string | null) {
-  async function fetchJSON(url: string, init?: RequestInit) {
-    if (!apiKey) throw new Error('Missing API key');
+  async function json(url: string, opts: RequestInit = {}) {
     const res = await fetch(url, {
-      ...init,
+      ...opts,
       headers: {
-        accept: 'application/json',
-        'x-api-key': apiKey,
-        ...(init?.headers || {}),
-      }
+        accept: "application/json",
+        "x-api-key": apiKey,
+        ...(opts.headers || {}),
+      },
     });
-    if (!res.ok) throw new Error(`${init?.method || 'GET'} ${url} failed`);
+    if (!res.ok) throw new Error(`${opts.method || "GET"} ${url} failed`);
     return res.json();
   }
 
-  return {
-    listGroups(signal?: AbortSignal) {
-      return fetchJSON(HEYGEN.avatarsList, { signal });
-    },
-    listVideos(params: Record<string,string>, signal?: AbortSignal) {
-      const qs = new URLSearchParams(params).toString();
-      return fetchJSON(`${HEYGEN.videosList}?${qs}`, { signal });
-    },
-    videoStatus(id: string, signal?: AbortSignal) {
-      return fetchJSON(HEYGEN.videoStatus(id), { signal });
-    },
-    groupAvatars(groupId: string, signal?: AbortSignal) {
-      return fetchJSON(HEYGEN.groupAvatars(groupId), { signal });
-    },
-  };
+  return { endpoints, json };
 }
