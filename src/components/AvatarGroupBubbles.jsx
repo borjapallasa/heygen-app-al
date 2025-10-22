@@ -1,5 +1,6 @@
 "use client";
 
+import useHeygenVideos from '@/hooks/useHeygenVideos';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Plus,
@@ -289,7 +290,9 @@ function useGroupAvatars() {
  *********************************/
 export default function AvatarGroupBubbles() {
   const { groups, loading: groupsLoading, error: groupsError } = useHeygenGroups();
-  const { videos, loading: videosLoading, error: videosError, token, loadingMore, loadMore } = useHeygenVideos();
+  // Pass whatever API key your app collected (prop, context, or state)
+const { videos, loading: videosLoading, error: videosError, token, loadingMore, loadMore } =
+  useHeygenVideos(apiKey); // <- apiKey available in this component
   const groupAvatars = useGroupAvatars();
 
   const [view, setView] = useState(VIEW.HOME);
