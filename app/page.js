@@ -1,4 +1,3 @@
-// app/page.js
 import dynamic from "next/dynamic";
 
 // IMPORTANT: path must match your repo exactly (case-sensitive on Vercel)
