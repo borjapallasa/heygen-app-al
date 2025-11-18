@@ -21,6 +21,8 @@ export default function FloaterBar({
   audioAttachment,
   onRemoveAudio,
   onRecordAudio,
+  onImportContent,
+  onImportAudio,
 }) {
   return (
     <div className="fixed left-1/2 bottom-6 -translate-x-1/2 z-50">
@@ -53,11 +55,25 @@ export default function FloaterBar({
               role="menu"
               className="absolute right-0 bottom-full mb-2 w-56 rounded-xl border border-slate-200 bg-white shadow-xl overflow-hidden max-h-[60vh] overflow-auto"
             >
-              <button className="w-full flex items-center gap-2 px-3 py-2 hover:bg-slate-50 text-sm" role="menuitem">
+              <button
+                className="w-full flex items-center gap-2 px-3 py-2 hover:bg-slate-50 text-sm"
+                onClick={() => {
+                  setActionsOpen?.(false);
+                  onImportContent?.();
+                }}
+                role="menuitem"
+              >
                 <FileText className="w-4 h-4 text-slate-500" />
                 Import Content
               </button>
-              <button className="w-full flex items-center gap-2 px-3 py-2 hover:bg-slate-50 text-sm" role="menuitem">
+              <button
+                className="w-full flex items-center gap-2 px-3 py-2 hover:bg-slate-50 text-sm"
+                onClick={() => {
+                  setActionsOpen?.(false);
+                  onImportAudio?.();
+                }}
+                role="menuitem"
+              >
                 <Music2 className="w-4 h-4 text-slate-500" />
                 Import Audios
               </button>

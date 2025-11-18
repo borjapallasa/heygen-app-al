@@ -1,3 +1,5 @@
+// NOTE: This screen is not currently used - AvatarGroupBubbles.jsx is used instead
+// Keeping this file to avoid breaking imports, but it's a stub
 "use client";
 import useHeygenGroups from "@/src/hooks/useHeygenGroups";
 import useHeygenVideos from "@/src/hooks/useHeygenVideos";
@@ -31,7 +33,7 @@ export default function HomeScreen() {
         <>
           <AvatarBubbleRow groups={groups} onPick={goToGroup}/>
           <Divider />
-          <VideosSection onNewVideo={startNewVideo} {...vids}/>
+          <VideosSection />
         </>
       )}
     </>

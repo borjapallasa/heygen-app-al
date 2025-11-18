@@ -2,7 +2,13 @@
 
 import { ArrowLeft } from 'lucide-react';
 
-export default function HeaderBack({ title, onBack, leftThumb }) {
+/**
+ * @param {Object} props
+ * @param {string} props.title
+ * @param {() => void} props.onBack
+ * @param {string} [props.leftThumb] - Optional thumbnail image URL
+ */
+export function HeaderBack({ title, onBack, leftThumb = undefined }) {
   return (
     <div className="flex items-center gap-3 mb-6">
       <button

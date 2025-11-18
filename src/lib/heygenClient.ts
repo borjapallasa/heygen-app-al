@@ -8,15 +8,25 @@ export function createHeygenClient(apiKey: string) {
   } as const;
 
   async function json(url: string, opts: RequestInit = {}) {
-    const res = await fetch(url, {
-      ...opts,
+    // Use proxy to avoid CORS issues
+    const res = await fetch('/api/heygen/proxy', {
+      method: 'POST',
       headers: {
-        accept: "application/json",
-        "x-api-key": apiKey,
-        ...(opts.headers || {}),
+        'Content-Type': 'application/json',
       },
+      body: JSON.stringify({
+        url,
+        method: opts.method || 'GET',
+        body: opts.body,
+        apiKey,
+      }),
     });
-    if (!res.ok) throw new Error(`${opts.method || "GET"} ${url} failed`);
+
+    if (!res.ok) {
+      const errorData = await res.json().catch(() => ({ error: 'Unknown error' }));
+      throw new Error(errorData.error || `Request to ${url} failed`);
+    }
+
     return res.json();
   }
 

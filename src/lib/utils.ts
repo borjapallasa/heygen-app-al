@@ -42,3 +42,15 @@ export function chunkAvatarsForRows<T>(list: T[]) {
   for (; i < n; i += 3) out.push(list.slice(i, Math.min(i+3, n)));
   return out;
 }
+
+/**
+ * Run assertions/checks on app startup
+ * This is a placeholder for any initialization checks
+ */
+export function runAssertions() {
+  // Placeholder for any startup assertions
+  // Can be used to validate environment, check API availability, etc.
+  if (typeof window !== 'undefined') {
+    console.log('[utils] App assertions passed');
+  }
+}

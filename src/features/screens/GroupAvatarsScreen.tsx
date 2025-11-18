@@ -1,5 +1,5 @@
 "use client";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useAppState } from "@/src/state/AppStateProvider";
 import useGroupAvatars from "@/src/hooks/useGroupAvatars";
 import { HeaderBack } from "@/src/features/shared/HeaderBack";
@@ -14,9 +14,19 @@ export default function GroupAvatarsScreen() {
     selectedGroup, setView,
     selectedAvatarIds, toggleAvatar, clearSelection,
     promptText, setPromptText,
-    audioAttachment, setAudioAttachment
+    audioAttachment, setAudioAttachment,
+    setRecordedAudio,
+    setVoiceSource,
+    setScriptSource,
+    projectContent,
+    projectAudio,
+    setSelectedProjectAudio
   } = useAppState();
   const { avatars, loading, error, fetchForGroup } = useGroupAvatars();
+
+  // Local state for FloaterBar
+  const [actionsOpen, setActionsOpen] = useState(false);
+  const [recorderOpen, setRecorderOpen] = useState(false);
 
   useEffect(() => {
     if (selectedGroup?.id) fetchForGroup(selectedGroup.id);
@@ -49,11 +59,50 @@ export default function GroupAvatarsScreen() {
           value={promptText}
           onChange={(v) => { setPromptText(v); if (v && audioAttachment) setAudioAttachment(null); }}
           onSubmit={() => setView(VIEW.REVIEW)}
+          actionsOpen={actionsOpen}
+          setActionsOpen={setActionsOpen}
+          audioAttachment={audioAttachment}
+          onRemoveAudio={() => setAudioAttachment(null)}
+          onRecordAudio={() => setRecorderOpen(true)}
+          onImportContent={() => {
+            if (projectContent) {
+              setScriptSource('project_content');
+              setPromptText(projectContent);
+              setView(VIEW.REVIEW);
+            } else {
+              alert('No project content available to import');
+            }
+          }}
+          onImportAudio={() => {
+            if (projectAudio && projectAudio.length > 0) {
+              setVoiceSource('project_audio');
+              setSelectedProjectAudio(projectAudio[0]);
+              setAudioAttachment({
+                url: projectAudio[0].url,
+                name: projectAudio[0].name,
+                duration: projectAudio[0].duration || 0
+              });
+              setView(VIEW.REVIEW);
+            } else {
+              alert('No project audio available to import');
+            }
+          }}
         />
       )}
 
-      {/* Recorder overlay is kept inside FloaterBar in your current code;
-          you can keep that behavior or host it here and conditionally show it */}
+      {/* Audio Recorder */}
+      {recorderOpen && (
+        <RecorderOverlay
+          onClose={() => setRecorderOpen(false)}
+          onSave={(item) => {
+            setRecordedAudio(item);
+            setVoiceSource('recorded');
+            setAudioAttachment(item);
+            setPromptText("");
+            setRecorderOpen(false);
+          }}
+        />
+      )}
     </>
   );
 }

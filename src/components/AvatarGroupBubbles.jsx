@@ -10,8 +10,8 @@ import useGroupAvatars from "@/src/hooks/useGroupAvatars";
 import useHeygenVideos from "@/src/hooks/useHeygenVideos";
 
 // shared UI
-import BannerError from "@/src/features/shared/BannerError";
-import HeaderBack from "@/src/features/shared/HeaderBack";
+import { BannerError } from "@/src/features/shared/BannerError";
+import { HeaderBack } from "@/src/features/shared/HeaderBack";
 import Divider from "@/features/shared/Divider";
 
 // avatars UI
@@ -22,6 +22,8 @@ import AvatarHoverCard from "@/src/features/avatars/AvatarHoverCard";
 // compose UI
 import FloaterBar from "@/src/features/compose/FloaterBar";
 import RecorderOverlay from "@/src/features/compose/RecorderOverlay";
+import ScriptSourceSelector from "@/src/features/compose/ScriptSourceSelector";
+import AudioSourceSelector from "@/src/features/compose/AudioSourceSelector";
 
 // videos UI (already uses useHeygenVideos inside)
 import VideosPane from "@/src/features/videos/VideosPane";
@@ -30,7 +32,21 @@ import VideosPane from "@/src/features/videos/VideosPane";
 import { chunkAvatarsForRows, runAssertions } from "@/src/lib/utils";
 
 export default function AvatarGroupBubbles() {
-  const { client } = useAppState(); // ensures API key exists before fetching
+  const {
+    client,
+    setRecordedAudio,
+    setVoiceSource,
+    setScriptSource,
+    projectContent,
+    projectAudio,
+    setSelectedProjectAudio,
+    apiKey,
+    parentData,
+    scriptSource,
+    voiceSource,
+    selectedProjectAudio,
+    recordedAudio
+  } = useAppState(); // ensures API key exists before fetching
 
   // No API key yet: show the same friendly gate
   if (!client) {
@@ -52,6 +68,8 @@ export default function AvatarGroupBubbles() {
   const [actionsOpen, setActionsOpen] = useState(false);
   const [recorderOpen, setRecorderOpen] = useState(false);
   const [audioAttachment, setAudioAttachment] = useState(null);
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [generationError, setGenerationError] = useState(null);
 
   // Data
   const { groups, loading: groupsLoading, error: groupsError } = useHeygenGroups();
@@ -73,10 +91,17 @@ export default function AvatarGroupBubbles() {
   };
 
   const goToGroupAvatars = async (group) => {
+    console.log("goToGroupAvatars called with group:", group);
+    if (!group || !group.id) {
+      console.error("Invalid group passed to goToGroupAvatars:", group);
+      return;
+    }
     setSelectedGroup(group);
     setSelectedAvatarIds(new Set());
     setView(VIEW.GROUP);
-    await groupAvatars.fetchForGroup(group?.id);
+    console.log("Fetching avatars for group ID:", group.id);
+    await groupAvatars.fetchForGroup(group.id);
+    console.log("Avatars fetched, count:", groupAvatars.avatars.length);
   };
 
   const toggleAvatarSelect = (id) => {
@@ -85,6 +110,83 @@ export default function AvatarGroupBubbles() {
       next.has(id) ? next.delete(id) : next.add(id);
       return next;
     });
+  };
+
+  const handleGenerateVideos = async () => {
+    setIsGenerating(true);
+    setGenerationError(null);
+
+    try {
+      const selected = groupAvatars.avatars.filter((a) => selectedAvatarIds.has(a.id));
+
+      if (selected.length === 0) {
+        throw new Error('No avatars selected');
+      }
+
+      // Determine script based on source
+      let script = '';
+      if (scriptSource === 'project_content' && projectContent) {
+        script = projectContent;
+      } else {
+        script = promptText;
+      }
+
+      if (!script || script.trim().length === 0) {
+        throw new Error('Please provide a script');
+      }
+
+      // Prepare metadata
+      const metadata = {
+        avatarIds: selected.map(a => a.id),
+        avatarNames: selected.map(a => a.name),
+        groupId: selectedGroup?.id,
+        groupName: selectedGroup?.name,
+        scriptSource,
+        script,
+        voiceSource,
+        audioUrl: voiceSource === 'project_audio' ? selectedProjectAudio?.url :
+                  voiceSource === 'recorded' ? recordedAudio?.url : null,
+        audioName: voiceSource === 'project_audio' ? selectedProjectAudio?.name :
+                   voiceSource === 'recorded' ? recordedAudio?.name : null
+      };
+
+      // Create job in database
+      const jobResponse = await fetch('/api/jobs', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          organization_uuid: parentData?.organizationId || '5ec92adf-57cb-4d08-817a-f523cc308cda',
+          status: 'pending',
+          metadata
+        })
+      });
+
+      if (!jobResponse.ok) {
+        const errorData = await jobResponse.json();
+        throw new Error(errorData.error || 'Failed to create job');
+      }
+
+      const { job } = await jobResponse.json();
+
+      console.log('Job created successfully:', job);
+
+      // TODO: Call HeyGen API to actually generate videos
+      // For now, just show success
+      alert(`Video generation started!\nJob ID: ${job.job_request_uuid}\nAvatars: ${selected.length}\nScript: ${script.substring(0, 50)}...`);
+
+      // Reset and go back to home
+      setView(VIEW.HOME);
+      setSelectedAvatarIds(new Set());
+      setPromptText('');
+      setAudioAttachment(null);
+
+    } catch (error) {
+      console.error('Generation error:', error);
+      setGenerationError(error.message);
+      alert('Error: ' + error.message);
+    } finally {
+      setIsGenerating(false);
+    }
   };
 
   if (isInitialLoading) {
@@ -115,10 +217,13 @@ export default function AvatarGroupBubbles() {
             <>
               <AvatarBubbleRow groups={groups} onPick={goToGroupAvatars} />
               <Divider />
-              <VideosPane /> {/* handles its own loading, errors, pagination */}
+              <VideosPane onGroupSelect={goToGroupAvatars} /> {/* handles its own loading, errors, pagination */}
             </>
           )}
         </section>
+        
+        {/* Modals need to be outside sections to avoid pointer-events issues */}
+        {/* Modals are rendered inside VideosPane but need to work even when HOME section is hidden */}
 
         {/* SELECT */}
         <section
@@ -208,27 +313,52 @@ export default function AvatarGroupBubbles() {
           </div>
 
           <div className="flex justify-center pb-8">
-            <div className="w-full max-w-xl space-y-4">
-              {audioAttachment ? (
-                <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-                  <h3 className="text-sm font-semibold text-slate-700 mb-2">Audio</h3>
-                  <audio src={audioAttachment.url} controls className="w-full" />
+            <div className="w-full max-w-3xl space-y-6">
+              {/* Script Source Selector */}
+              <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+                <ScriptSourceSelector />
+              </div>
+
+              {/* Audio Source Selector */}
+              <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+                <AudioSourceSelector />
+
+                {/* Record Audio Button */}
+                <div className="mt-4">
+                  <button
+                    onClick={() => setRecorderOpen(true)}
+                    className="w-full px-4 py-2 rounded-lg bg-red-500 text-white hover:bg-red-600 transition-colors flex items-center justify-center gap-2"
+                  >
+                    <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                      <path fillRule="evenodd" d="M7 4a3 3 0 016 0v4a3 3 0 11-6 0V4zm4 10.93A7.001 7.001 0 0017 8a1 1 0 10-2 0A5 5 0 015 8a1 1 0 00-2 0 7.001 7.001 0 006 6.93V17H6a1 1 0 100 2h8a1 1 0 100-2h-3v-2.07z" clipRule="evenodd" />
+                    </svg>
+                    Record New Audio
+                  </button>
                 </div>
-              ) : (
-                <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm min-h-[120px]">
-                  <h3 className="text-sm font-semibold text-slate-700 mb-2">Script</h3>
-                  <div className="text-sm text-slate-800 whitespace-pre-wrap">{promptText || "—"}</div>
+              </div>
+
+              {generationError && (
+                <div className="bg-red-50 border border-red-200 text-red-700 rounded-xl p-4 text-sm">
+                  {generationError}
                 </div>
               )}
 
               <button
-                onClick={() => {
-                  const selected = groupAvatars.avatars.filter((a) => selectedAvatarIds.has(a.id));
-                  console.log("CONFIRM", { group: selectedGroup, selected, script: promptText, audio: audioAttachment });
-                }}
-                className="w-full px-4 py-3 rounded-2xl bg-black text-white hover:opacity-90"
+                onClick={handleGenerateVideos}
+                disabled={isGenerating}
+                className="w-full px-4 py-3 rounded-2xl bg-black text-white hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
               >
-                Confirm
+                {isGenerating ? (
+                  <>
+                    <svg className="animate-spin h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    Generating...
+                  </>
+                ) : (
+                  'Generate Video'
+                )}
               </button>
             </div>
           </div>
@@ -239,6 +369,11 @@ export default function AvatarGroupBubbles() {
           <RecorderOverlay
             onClose={() => setRecorderOpen(false)}
             onSave={(item) => {
+              // Save recorded audio to global state
+              setRecordedAudio(item);
+              // Set voice source to recorded
+              setVoiceSource('recorded');
+              // Also set local audio attachment
               setAudioAttachment(item);
               setPromptText("");
               setRecorderOpen(false);
@@ -260,6 +395,32 @@ export default function AvatarGroupBubbles() {
             audioAttachment={audioAttachment}
             onRemoveAudio={() => setAudioAttachment(null)}
             onRecordAudio={() => setRecorderOpen(true)}
+            onImportContent={() => {
+              // Set script source to project content and navigate to review
+              if (projectContent) {
+                setScriptSource('project_content');
+                setPromptText(projectContent);
+                goToReview();
+              } else {
+                alert('No project content available to import');
+              }
+            }}
+            onImportAudio={() => {
+              // Set voice source to project audio and navigate to review
+              if (projectAudio && projectAudio.length > 0) {
+                setVoiceSource('project_audio');
+                // Optionally auto-select first audio
+                setSelectedProjectAudio(projectAudio[0]);
+                setAudioAttachment({
+                  url: projectAudio[0].url,
+                  name: projectAudio[0].name,
+                  duration: projectAudio[0].duration || 0
+                });
+                goToReview();
+              } else {
+                alert('No project audio available to import');
+              }
+            }}
           />
         )}
       </div>

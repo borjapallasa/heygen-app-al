@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { HEYGEN } from "@/lib/constants";
-import { useAppState } from "@/state/AppStateProvider";
+import { useEffect, useState, useRef } from "react";
+import { HEYGEN } from "@/src/lib/constants";
+import { useAppState } from "@/src/state/AppStateProvider";
 
 export type VideoItem = {
   id: string;
@@ -20,9 +20,10 @@ type State = {
   token: string | null;
   loadingMore: boolean;
   loadMore: () => Promise<void>;
+  fetchThumbnailForVideo: (videoId: string) => Promise<void>;
 };
 
-async function fetchJSON<T>(url: string, apiKey: string, opts: RequestInit = {}): Promise<T> {
+async function fetchJSON<T>(url: string, apiKey: string, opts: RequestInit = {}): Promise<{ data: T; status: number }> {
   const res = await fetch(url, {
     ...opts,
     headers: {
@@ -31,8 +32,12 @@ async function fetchJSON<T>(url: string, apiKey: string, opts: RequestInit = {})
       ...(opts.headers || {})
     }
   });
-  if (!res.ok) throw new Error(`${opts.method || "GET"} ${url} failed`);
-  return res.json();
+  if (!res.ok) {
+    const error = new Error(`${opts.method || "GET"} ${url} failed`) as Error & { status?: number };
+    error.status = res.status;
+    throw error;
+  }
+  return { data: await res.json(), status: res.status };
 }
 
 export default function useHeygenVideos(): State {
@@ -42,25 +47,50 @@ export default function useHeygenVideos(): State {
   const [error, setError] = useState<string | null>(null);
   const [token, setToken] = useState<string | null>(null);
   const [loadingMore, setLoadingMore] = useState<boolean>(false);
+  const thumbnailsLoadingRef = useRef<Set<string>>(new Set());
+  const failedVideoIdsRef = useRef<Set<string>>(new Set()); // Track videos that failed (404, etc.)
+  const videosRef = useRef<VideoItem[]>([]);
 
-  async function fetchThumbsBatched(items: VideoItem[], signal: AbortSignal, apiKey: string, size = 8) {
-    const out: VideoItem[] = [];
-    for (let i = 0; i < items.length; i += size) {
-      const batch = items.slice(i, i + size);
-      const done = await Promise.all(
-        batch.map(async (v) => {
-          try {
-            const json = await fetchJSON<any>(HEYGEN.videoStatus(v.id), apiKey, { signal });
-            const t = json?.data?.thumbnail_url || null;
-            return { ...v, thumb: t || v.thumb };
-          } catch {
-            return v;
-          }
-        })
-      );
-      out.push(...done);
+  // Keep videosRef in sync with videos state
+  useEffect(() => {
+    videosRef.current = videos;
+  }, [videos]);
+
+  // Fetch thumbnail for a single video on-demand
+  async function fetchThumbnailForVideo(videoId: string): Promise<void> {
+    if (!apiKey) return;
+    
+    // Skip if already loading, already has thumbnail, or previously failed
+    if (thumbnailsLoadingRef.current.has(videoId)) return;
+    if (failedVideoIdsRef.current.has(videoId)) return; // Don't retry failed videos
+    
+    // Use ref to get latest videos state to avoid stale closure
+    const video = videosRef.current.find(v => v.id === videoId);
+    if (!video || video.thumb) return; // Already has thumbnail
+    
+    thumbnailsLoadingRef.current.add(videoId);
+    
+    try {
+      const result = await fetchJSON<any>(HEYGEN.videoStatus(videoId), apiKey);
+      const thumbnailUrl = result.data?.data?.thumbnail_url || result.data?.thumbnail_url || null;
+      
+      if (thumbnailUrl) {
+        setVideos(prev => prev.map(v => 
+          v.id === videoId ? { ...v, thumb: thumbnailUrl } : v
+        ));
+      }
+    } catch (e: any) {
+      // Track failed requests, especially 404s, to prevent retrying
+      if (e?.status === 404 || e?.status >= 400) {
+        failedVideoIdsRef.current.add(videoId);
+        console.debug(`Video ${videoId} not found (${e.status}), skipping future requests`);
+      } else {
+        // For other errors, log but don't mark as permanently failed
+        console.debug(`Failed to fetch thumbnail for video ${videoId}:`, e);
+      }
+    } finally {
+      thumbnailsLoadingRef.current.delete(videoId);
     }
-    return out;
   }
 
   // initial load
@@ -73,8 +103,8 @@ export default function useHeygenVideos(): State {
       setError(null);
       try {
         const params = new URLSearchParams({ limit: "50" });
-        const json = await fetchJSON<any>(`${HEYGEN.videosList}?${params.toString()}`, apiKey, { signal });
-        const list = json?.data?.videos || [];
+        const result = await fetchJSON<any>(`${HEYGEN.videosList}?${params.toString()}`, apiKey, { signal });
+        const list = result.data?.data?.videos || result.data?.videos || [];
         const normalized: VideoItem[] = list.map((v: any) => ({
           id: v.video_id,
           title: v.video_title || "Untitled",
@@ -83,9 +113,9 @@ export default function useHeygenVideos(): State {
           type: v.type || "GENERATED",
           thumb: null
         }));
-        const withThumbs = await fetchThumbsBatched(normalized, signal, apiKey);
-        setVideos(withThumbs);
-        setToken(json?.data?.token || null);
+        // Don't fetch thumbnails automatically - they will be loaded lazily
+        setVideos(normalized);
+        setToken(result.data?.data?.token || result.data?.token || null);
       } catch (e: any) {
         if (e?.name !== "AbortError") setError(e.message || "Failed to fetch videos");
       } finally {
@@ -103,8 +133,8 @@ export default function useHeygenVideos(): State {
     setLoadingMore(true);
     try {
       const params = new URLSearchParams({ limit: "50", token });
-      const json = await fetchJSON<any>(`${HEYGEN.videosList}?${params.toString()}`, apiKey, { signal });
-      const list = json?.data?.videos || [];
+      const result = await fetchJSON<any>(`${HEYGEN.videosList}?${params.toString()}`, apiKey, { signal });
+      const list = result.data?.data?.videos || result.data?.videos || [];
       const normalized: VideoItem[] = list.map((v: any) => ({
         id: v.video_id,
         title: v.video_title || "Untitled",
@@ -113,9 +143,9 @@ export default function useHeygenVideos(): State {
         type: v.type || "GENERATED",
         thumb: null
       }));
-      const withThumbs = await fetchThumbsBatched(normalized, signal, apiKey);
-      setVideos((prev) => [...prev, ...withThumbs]);
-      setToken(json?.data?.token || null);
+      // Don't fetch thumbnails automatically - they will be loaded lazily
+      setVideos((prev) => [...prev, ...normalized]);
+      setToken(result.data?.data?.token || result.data?.token || null);
     } catch (e: any) {
       if (e?.name !== "AbortError") setError(e.message || "Failed to fetch videos");
     } finally {
@@ -123,5 +153,5 @@ export default function useHeygenVideos(): State {
     }
   }
 
-  return { videos, loading, error, token, loadingMore, loadMore };
+  return { videos, loading, error, token, loadingMore, loadMore, fetchThumbnailForVideo };
 }
