@@ -140,10 +140,12 @@ export function ScriptSourceSelector() {
             </button>
           </div>
           <div className="text-xs text-gray-600 max-h-32 overflow-y-auto whitespace-pre-wrap">
-            {projectContent.length > 300
-              ? `${projectContent.substring(0, 300)}...`
-              : projectContent
-            }
+            {(() => {
+              const cleanContent = stripHtml(projectContent);
+              return cleanContent.length > 300
+                ? `${cleanContent.substring(0, 300)}...`
+                : cleanContent;
+            })()}
           </div>
         </div>
       )}

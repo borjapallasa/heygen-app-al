@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState, useRef, useCallback } from "react";
 import { useAppState } from "@/src/state/AppStateProvider";
 
 export type Job = {
@@ -33,7 +33,7 @@ export default function useJobPolling(): UseJobPollingReturn {
   const [error, setError] = useState<string | null>(null);
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
 
-  const fetchJobs = async () => {
+  const fetchJobs = useCallback(async () => {
     if (!parentData?.organizationId) {
       setJobs([]);
       return;
@@ -59,7 +59,7 @@ export default function useJobPolling(): UseJobPollingReturn {
     } finally {
       setLoading(false);
     }
-  };
+  }, [parentData?.organizationId]);
 
   const updateJobStatus = async (
     jobId: string,

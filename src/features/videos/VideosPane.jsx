@@ -9,15 +9,36 @@ import { timeAgo } from "@/src/lib/utils";
 import { useAppState } from "@/src/state/AppStateProvider";
 import { useToast } from "@/src/features/shared/Toast";
 
-export default function VideosPane({ onGroupSelect } = {}) {
-  const { videos, loading, error, fetchThumbnailForVideo } = useHeygenVideos();
+export default function VideosPane({ onGroupSelect, onRefetchReady } = {}) {
+  const { videos, loading, error, fetchThumbnailForVideo, refetch: refetchVideos } = useHeygenVideos();
   const { groups } = useHeygenGroups();
-  const { jobs, loading: jobsLoading, updateJobStatus } = useJobPolling();
+  const { jobs, loading: jobsLoading, updateJobStatus, refetch: refetchJobs } = useJobPolling();
   const { apiKey } = useAppState();
   const { showToast, ToastContainer } = useToast();
   const [openMenuId, setOpenMenuId] = useState(null);
   const [showGroupModal, setShowGroupModal] = useState(false);
   const videoRefs = useRef(new Map());
+  const refetchFunctionsRef = useRef({ refetchVideos, refetchJobs });
+  const onRefetchReadyRef = useRef(onRefetchReady);
+  const hasExposedRefetch = useRef(false);
+
+  // Keep refs up to date
+  useEffect(() => {
+    onRefetchReadyRef.current = onRefetchReady;
+  }, [onRefetchReady]);
+
+  useEffect(() => {
+    refetchFunctionsRef.current = { refetchVideos, refetchJobs };
+  }, [refetchVideos, refetchJobs]);
+
+  // Expose refetch functions to parent (only once, when functions are available)
+  useEffect(() => {
+    if (onRefetchReadyRef.current && !hasExposedRefetch.current && refetchVideos && refetchJobs) {
+      hasExposedRefetch.current = true;
+      onRefetchReadyRef.current(refetchFunctionsRef.current);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [refetchVideos, refetchJobs]); // Only depend on the functions, not the callback
 
   const startNewVideo = () => {
     setShowGroupModal(true);
@@ -122,42 +143,68 @@ export default function VideosPane({ onGroupSelect } = {}) {
     }
   };
 
-  // Intersection Observer for lazy loading thumbnails
+  // Intersection Observer for lazy loading thumbnails (memoized to avoid recreating)
+  const observerRef = useRef(null);
+  const videosRef = useRef(videos);
+  const fetchThumbnailRef = useRef(fetchThumbnailForVideo);
+  
+  // Keep refs in sync
   useEffect(() => {
-    if (!fetchThumbnailForVideo || videos.length === 0) return;
-
-    const observer = new IntersectionObserver(
-      (entries) => {
-        entries.forEach((entry) => {
-          if (entry.isIntersecting) {
-            const videoId = entry.target.getAttribute("data-video-id");
-            if (videoId) {
-              // Only fetch if video doesn't already have a thumbnail
-              const video = videos.find(v => (v.video_id || v.id) === videoId);
-              if (video && !video.thumb && !video.thumbnail_url && !video.thumbnail) {
-                fetchThumbnailForVideo(videoId);
-              }
-              // Unobserve after checking/fetching to avoid duplicate requests
-              observer.unobserve(entry.target);
-            }
-          }
-        });
-      },
-      {
-        rootMargin: "100px", // Prefetch thumbnails 100px ahead of viewport
-        threshold: 0.1, // Trigger when 10% of the element is visible
+    videosRef.current = videos;
+    fetchThumbnailRef.current = fetchThumbnailForVideo;
+  }, [videos, fetchThumbnailForVideo]);
+  
+  useEffect(() => {
+    if (!fetchThumbnailForVideo || videos.length === 0) {
+      // Cleanup if no videos
+      if (observerRef.current) {
+        observerRef.current.disconnect();
+        observerRef.current = null;
       }
-    );
+      return;
+    }
+
+    // Create observer only once
+    if (!observerRef.current) {
+      observerRef.current = new IntersectionObserver(
+        (entries) => {
+          entries.forEach((entry) => {
+            if (entry.isIntersecting) {
+              const videoId = entry.target.getAttribute("data-video-id");
+              if (videoId) {
+                // Use refs to get latest values to avoid stale closures
+                const video = videosRef.current.find(v => (v.video_id || v.id) === videoId);
+                if (video && !video.thumb && !video.thumbnail_url && !video.thumbnail) {
+                  fetchThumbnailRef.current(videoId);
+                }
+                // Unobserve after checking/fetching to avoid duplicate requests
+                observerRef.current?.unobserve(entry.target);
+              }
+            }
+          });
+        },
+        {
+          rootMargin: "50px", // Reduced from 100px to be less aggressive
+          threshold: 0.1, // Trigger when 10% of the element is visible
+        }
+      );
+    }
+
+    const observer = observerRef.current;
 
     // Use requestAnimationFrame to ensure DOM is updated before observing
     const timeoutId = setTimeout(() => {
       // Observe all video card elements that don't have thumbnails yet
       videoRefs.current.forEach((element, videoId) => {
-        if (element) {
-          const video = videos.find(v => (v.video_id || v.id) === videoId);
+        if (element && observer) {
+          const video = videosRef.current.find(v => (v.video_id || v.id) === videoId);
           // Only observe videos that don't have thumbnails
           if (video && !video.thumb && !video.thumbnail_url && !video.thumbnail) {
-            observer.observe(element);
+            try {
+              observer.observe(element);
+            } catch (e) {
+              // Element might have been removed, ignore
+            }
           }
         }
       });
@@ -165,9 +212,19 @@ export default function VideosPane({ onGroupSelect } = {}) {
 
     return () => {
       clearTimeout(timeoutId);
-      observer.disconnect();
+      // Don't disconnect observer here, only on unmount
     };
   }, [videos, fetchThumbnailForVideo]);
+
+  // Cleanup observer on unmount
+  useEffect(() => {
+    return () => {
+      if (observerRef.current) {
+        observerRef.current.disconnect();
+        observerRef.current = null;
+      }
+    };
+  }, []);
 
   if (loading) {
     return (
@@ -258,7 +315,7 @@ export default function VideosPane({ onGroupSelect } = {}) {
                       <div className="flex items-center gap-2">
                         <button
                           onClick={async () => {
-                            if (confirm('Mark this job as completed? (for testing)')) {
+                            if (confirm('Mark this job as completed?')) {
                               await updateJobStatus(jobId, 'completed');
                             }
                           }}

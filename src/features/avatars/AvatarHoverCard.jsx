@@ -6,16 +6,47 @@ import { Check } from 'lucide-react';
 export default function AvatarHoverCard({ avatar, selected, onToggle }) {
   const videoRef = useRef(null);
   const hoverTimer = useRef(null);
+  const cardRef = useRef(null);
   const [showVideo, setShowVideo] = useState(false);
+  const [isVisible, setIsVisible] = useState(false);
+  const [shouldLoadVideo, setShouldLoadVideo] = useState(false);
+
+  // Lazy load video element only when card is visible in viewport
+  useEffect(() => {
+    if (!cardRef.current || !avatar.video) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (entry.isIntersecting) {
+            setIsVisible(true);
+            // Only load video source when actually visible
+            setShouldLoadVideo(true);
+            observer.unobserve(entry.target);
+          }
+        });
+      },
+      {
+        rootMargin: '50px', // Start loading slightly before entering viewport
+        threshold: 0.1,
+      }
+    );
+
+    observer.observe(cardRef.current);
+
+    return () => {
+      observer.disconnect();
+    };
+  }, [avatar.video]);
 
   useEffect(() => {
-    if (videoRef.current) {
+    if (videoRef.current && shouldLoadVideo) {
       try {
         videoRef.current.muted = true;
         videoRef.current.setAttribute('muted', '');
       } catch {}
     }
-  }, []);
+  }, [shouldLoadVideo]);
 
   function safePlay(v) {
     if (!v) return;
@@ -55,7 +86,10 @@ export default function AvatarHoverCard({ avatar, selected, onToggle }) {
   }
 
   return (
-    <article className="rounded-3xl overflow-hidden bg-white border border-slate-200 shadow-sm hover:shadow-md transition-shadow">
+    <article 
+      ref={cardRef}
+      className="rounded-3xl overflow-hidden bg-white border border-slate-200 shadow-sm hover:shadow-md transition-shadow"
+    >
       <div
         className="relative aspect-[4/5] overflow-hidden"
         onMouseEnter={handleEnter}
@@ -68,14 +102,15 @@ export default function AvatarHoverCard({ avatar, selected, onToggle }) {
           loading="lazy"
         />
 
-        {avatar.video && (
+        {/* Only render video element when it should be loaded (visible in viewport) */}
+        {avatar.video && shouldLoadVideo && (
           <video
             ref={videoRef}
             className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-200 ${showVideo ? 'opacity-100' : 'opacity-0'}`}
             muted
             playsInline
             loop
-            preload="metadata"
+            preload="none"
             disablePictureInPicture
             controls={false}
             onCanPlay={() => setShowVideo(true)}

@@ -46,7 +46,9 @@ export default function AvatarGroupBubbles() {
     scriptSource,
     voiceSource,
     selectedProjectAudio,
-    recordedAudio
+    recordedAudio,
+    promptText: globalPromptText,
+    setPromptText: setGlobalPromptText
   } = useAppState(); // ensures API key exists before fetching
 
   // No API key yet: show the same friendly gate
@@ -71,6 +73,7 @@ export default function AvatarGroupBubbles() {
   const [audioAttachment, setAudioAttachment] = useState(null);
   const [isGenerating, setIsGenerating] = useState(false);
   const [generationError, setGenerationError] = useState(null);
+  const [refetchFunctions, setRefetchFunctions] = useState(null);
 
   // Data
   const { groups, loading: groupsLoading, error: groupsError } = useHeygenGroups();
@@ -124,15 +127,20 @@ export default function AvatarGroupBubbles() {
         throw new Error('No avatars selected');
       }
 
-      // Determine script based on source
+      // Determine script based on source and strip HTML tags
+      // Use global promptText from AppStateProvider (not local state)
       let script = '';
       if (scriptSource === 'project_content' && projectContent) {
-        script = projectContent;
+        script = stripHtml(projectContent);
+      } else if (scriptSource === 'manual') {
+        script = globalPromptText || '';
       } else {
-        script = promptText;
+        script = globalPromptText || '';
       }
 
-      if (!script || script.trim().length === 0) {
+      // Trim and validate script
+      script = script.trim();
+      if (!script || script.length === 0) {
         throw new Error('Please provide a script');
       }
 
@@ -202,14 +210,26 @@ export default function AvatarGroupBubbles() {
       console.log('Job created successfully:', job);
 
       // TODO: Call HeyGen API to actually generate videos
-      // For now, just show success
-      alert(`Video generation started!\nJob ID: ${job.job_request_uuid}\nAvatars: ${selected.length}\nScript: ${script.substring(0, 50)}...`);
+      // Job created successfully, now refetch to show pending state
 
       // Reset and go back to home
       setView(VIEW.HOME);
       setSelectedAvatarIds(new Set());
       setPromptText('');
       setAudioAttachment(null);
+
+      // Refetch videos and jobs to show the new pending job
+      if (refetchFunctions) {
+        try {
+          await Promise.all([
+            refetchFunctions.refetchVideos(),
+            refetchFunctions.refetchJobs()
+          ]);
+        } catch (refetchError) {
+          console.error('Error refetching videos/jobs:', refetchError);
+          // Don't show error to user, just log it
+        }
+      }
 
     } catch (error) {
       console.error('Generation error:', error);
@@ -248,7 +268,10 @@ export default function AvatarGroupBubbles() {
             <>
               <AvatarBubbleRow groups={groups} onPick={goToGroupAvatars} />
               <Divider />
-              <VideosPane onGroupSelect={goToGroupAvatars} /> {/* handles its own loading, errors, pagination */}
+              <VideosPane 
+                onGroupSelect={goToGroupAvatars}
+                onRefetchReady={setRefetchFunctions}
+              /> {/* handles its own loading, errors, pagination */}
             </>
           )}
         </section>
