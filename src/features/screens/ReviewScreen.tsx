@@ -6,7 +6,6 @@ import { chunkAvatarsForRows } from "@/src/lib/utils";
 import { VIEW } from "@/src/lib/constants";
 import ScriptSourceSelector from "@/src/features/compose/ScriptSourceSelector";
 import AudioSourceSelector from "@/src/features/compose/AudioSourceSelector";
-import AudioRecorderModal from "@/src/features/compose/AudioRecorderModal";
 
 export default function ReviewScreen() {
   const {
@@ -17,14 +16,20 @@ export default function ReviewScreen() {
     setPromptText,
     audioAttachment,
     scriptSource,
-    voiceSource
+    voiceSource,
+    contentAttachment
   } = useAppState();
 
-  const [showRecorderModal, setShowRecorderModal] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
 
   // You probably have avatars in memory already; pass them through context or props as needed.
   const selectedAvatars = useMemo(() => Array.from(selectedAvatarIds), [selectedAvatarIds]);
+
+  // Determine if audio is selected (audio attachment exists or voice source is not HeyGen)
+  const hasAudioSelected = audioAttachment !== null || voiceSource !== 'heygen';
+  
+  // Determine if script/content is selected (content attachment exists, script source is project_content, or prompt text exists)
+  const hasScriptSelected = contentAttachment !== null || scriptSource === 'project_content' || (promptText && promptText.trim().length > 0);
 
   const handleGenerate = async () => {
     setIsGenerating(true);
@@ -62,46 +67,51 @@ export default function ReviewScreen() {
             </div>
           </div>
 
-          {/* Script Source Selector */}
-          <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-            <ScriptSourceSelector />
-          </div>
-
-          {/* Script Input (only for manual input or showing project content) */}
-          {scriptSource === 'manual' && (
-            <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-              <label className="block text-sm font-semibold text-slate-700 mb-2">
-                Script Text
-              </label>
-              <textarea
-                value={promptText}
-                onChange={(e) => setPromptText(e.target.value)}
-                placeholder="Enter your script here..."
-                className="w-full min-h-[120px] p-3 border border-slate-200 rounded-lg text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500 resize-y"
-              />
-              <div className="mt-2 text-xs text-slate-500">
-                {promptText.length} characters
+          {/* Script Section - Only show if audio is NOT selected */}
+          {!hasAudioSelected && (
+            <>
+              {/* Script Source Selector */}
+              <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+                <ScriptSourceSelector readOnly />
               </div>
-            </div>
+
+              {/* Script Input (only for manual input or showing project content) */}
+              {scriptSource === 'manual' && (
+                <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+                  <label className="block text-sm font-semibold text-slate-700 mb-2">
+                    Script Text
+                  </label>
+                  <textarea
+                    value={promptText}
+                    readOnly
+                    placeholder="Enter your script here..."
+                    className="w-full min-h-[120px] p-3 border border-slate-200 rounded-lg text-sm text-slate-800 bg-slate-50 resize-y cursor-default"
+                  />
+                  <div className="mt-2 text-xs text-slate-500">
+                    {promptText.length} characters
+                  </div>
+                </div>
+              )}
+            </>
           )}
 
-          {/* Audio Source Selector */}
-          <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-            <AudioSourceSelector />
-          </div>
+          {/* Audio Section - Only show if script/content is NOT selected */}
+          {!hasScriptSelected && (
+            <>
+              {/* Audio Source Selector */}
+              <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+                <AudioSourceSelector readOnly />
+              </div>
+            </>
+          )}
 
-          {/* Record Audio Button (only show when no recorded audio yet) */}
-          {voiceSource !== 'recorded' && (
-            <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-              <button
-                onClick={() => setShowRecorderModal(true)}
-                className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-              >
-                <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
-                  <path fillRule="evenodd" d="M7 4a3 3 0 016 0v4a3 3 0 11-6 0V4zm4 10.93A7.001 7.001 0 0017 8a1 1 0 10-2 0A5 5 0 015 8a1 1 0 00-2 0 7.001 7.001 0 006 6.93V17H6a1 1 0 100 2h8a1 1 0 100-2h-3v-2.07z" clipRule="evenodd" />
-                </svg>
-                Record Audio for Video
-              </button>
+          {/* Show message if user needs to go back to change selection */}
+          {(hasAudioSelected || hasScriptSelected) && (
+            <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 shadow-sm">
+              <p className="text-sm text-slate-600 text-center">
+                {hasAudioSelected && 'Audio is selected. Go back to change script/content.'}
+                {hasScriptSelected && !hasAudioSelected && 'Script/Content is selected. Go back to change audio.'}
+              </p>
             </div>
           )}
 
@@ -131,12 +141,6 @@ export default function ReviewScreen() {
           </div>
         </div>
       </div>
-
-      {/* Audio Recorder Modal */}
-      <AudioRecorderModal
-        isOpen={showRecorderModal}
-        onClose={() => setShowRecorderModal(false)}
-      />
     </>
   );
 }

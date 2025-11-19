@@ -6,8 +6,9 @@ import { stripHtml } from "@/src/lib/utils";
 /**
  * ScriptSourceSelector component
  * Allows user to choose between manual text input or project content
+ * @param readOnly - If true, disables all interactive elements (for review/confirm page)
  */
-export function ScriptSourceSelector() {
+export function ScriptSourceSelector({ readOnly = false }: { readOnly?: boolean }) {
   const {
     scriptSource,
     setScriptSource,
@@ -17,6 +18,7 @@ export function ScriptSourceSelector() {
   } = useAppState();
 
   const handleSourceChange = (source: 'manual' | 'project_content') => {
+    if (readOnly) return;
     setScriptSource(source);
 
     // If switching to project content, load it into promptText (stripped of HTML)
@@ -37,12 +39,14 @@ export function ScriptSourceSelector() {
         <button
           type="button"
           onClick={() => handleSourceChange('manual')}
+          disabled={readOnly}
           className={`
             relative flex flex-col items-start p-4 border-2 rounded-lg transition-all
             ${scriptSource === 'manual'
               ? 'border-blue-500 bg-blue-50'
               : 'border-gray-200 bg-white hover:border-gray-300'
             }
+            ${readOnly ? 'cursor-default' : ''}
           `}
         >
           <div className="flex items-center justify-between w-full mb-2">
@@ -72,14 +76,14 @@ export function ScriptSourceSelector() {
         <button
           type="button"
           onClick={() => handleSourceChange('project_content')}
-          disabled={!projectContent}
+          disabled={!projectContent || readOnly}
           className={`
             relative flex flex-col items-start p-4 border-2 rounded-lg transition-all
             ${scriptSource === 'project_content'
               ? 'border-blue-500 bg-blue-50'
               : 'border-gray-200 bg-white hover:border-gray-300'
             }
-            ${!projectContent ? 'opacity-50 cursor-not-allowed' : ''}
+            ${!projectContent || readOnly ? 'opacity-50 cursor-not-allowed' : ''}
           `}
         >
           <div className="flex items-center justify-between w-full mb-2">
@@ -114,9 +118,12 @@ export function ScriptSourceSelector() {
         <div className="mt-3">
           <textarea
             value={promptText}
-            onChange={(e) => setPromptText(e.target.value)}
+            onChange={(e) => !readOnly && setPromptText(e.target.value)}
+            readOnly={readOnly}
             placeholder="Type your script here..."
-            className="w-full min-h-[120px] p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-y text-sm"
+            className={`w-full min-h-[120px] p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-y text-sm ${
+              readOnly ? 'bg-gray-50 cursor-default' : ''
+            }`}
           />
           <p className="mt-1 text-xs text-gray-500">
             {promptText.length} characters
@@ -131,13 +138,15 @@ export function ScriptSourceSelector() {
             <span className="text-xs font-medium text-gray-700">
               Project Content Preview
             </span>
-            <button
-              type="button"
-              onClick={() => handleSourceChange('manual')}
-              className="text-xs text-blue-600 hover:text-blue-700"
-            >
-              Edit manually
-            </button>
+            {!readOnly && (
+              <button
+                type="button"
+                onClick={() => handleSourceChange('manual')}
+                className="text-xs text-blue-600 hover:text-blue-700"
+              >
+                Edit manually
+              </button>
+            )}
           </div>
           <div className="text-xs text-gray-600 max-h-32 overflow-y-auto whitespace-pre-wrap">
             {(() => {

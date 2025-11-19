@@ -5,8 +5,9 @@ import { useAppState } from "@/src/state/AppStateProvider";
 /**
  * AudioSourceSelector component
  * Allows user to choose between HeyGen voices, project audio, or recorded audio
+ * @param readOnly - If true, disables all interactive elements (for review/confirm page)
  */
-export function AudioSourceSelector() {
+export function AudioSourceSelector({ readOnly = false }: { readOnly?: boolean }) {
   const {
     voiceSource,
     setVoiceSource,
@@ -20,6 +21,7 @@ export function AudioSourceSelector() {
   const [showProjectAudioList, setShowProjectAudioList] = useState(false);
 
   const handleSourceChange = (source: 'heygen' | 'project_audio' | 'recorded') => {
+    if (readOnly) return;
     setVoiceSource(source);
 
     // Clear audio attachment when switching to HeyGen voices
@@ -43,6 +45,7 @@ export function AudioSourceSelector() {
   };
 
   const handleProjectAudioSelect = (audio: any) => {
+    if (readOnly) return;
     setSelectedProjectAudio(audio);
     setAudioAttachment({
       url: audio.url,
@@ -69,12 +72,14 @@ export function AudioSourceSelector() {
         <button
           type="button"
           onClick={() => handleSourceChange('heygen')}
+          disabled={readOnly}
           className={`
             relative flex flex-col items-start p-4 border-2 rounded-lg transition-all
             ${voiceSource === 'heygen'
               ? 'border-blue-500 bg-blue-50'
               : 'border-gray-200 bg-white hover:border-gray-300'
             }
+            ${readOnly ? 'cursor-default' : ''}
           `}
         >
           <div className="flex items-center justify-between w-full mb-2">
@@ -104,14 +109,14 @@ export function AudioSourceSelector() {
         <button
           type="button"
           onClick={() => handleSourceChange('project_audio')}
-          disabled={!projectAudio || projectAudio.length === 0}
+          disabled={!projectAudio || projectAudio.length === 0 || readOnly}
           className={`
             relative flex flex-col items-start p-4 border-2 rounded-lg transition-all
             ${voiceSource === 'project_audio'
               ? 'border-blue-500 bg-blue-50'
               : 'border-gray-200 bg-white hover:border-gray-300'
             }
-            ${!projectAudio || projectAudio.length === 0 ? 'opacity-50 cursor-not-allowed' : ''}
+            ${!projectAudio || projectAudio.length === 0 || readOnly ? 'opacity-50 cursor-not-allowed' : ''}
           `}
         >
           <div className="flex items-center justify-between w-full mb-2">
@@ -144,14 +149,14 @@ export function AudioSourceSelector() {
         <button
           type="button"
           onClick={() => handleSourceChange('recorded')}
-          disabled={!recordedAudio}
+          disabled={!recordedAudio || readOnly}
           className={`
             relative flex flex-col items-start p-4 border-2 rounded-lg transition-all
             ${voiceSource === 'recorded'
               ? 'border-blue-500 bg-blue-50'
               : 'border-gray-200 bg-white hover:border-gray-300'
             }
-            ${!recordedAudio ? 'opacity-50 cursor-not-allowed' : ''}
+            ${!recordedAudio || readOnly ? 'opacity-50 cursor-not-allowed' : ''}
           `}
         >
           <div className="flex items-center justify-between w-full mb-2">
@@ -189,13 +194,15 @@ export function AudioSourceSelector() {
               <p className="text-sm text-yellow-800 mb-2">
                 Please select an audio file from your project:
               </p>
-              <button
-                type="button"
-                onClick={() => setShowProjectAudioList(!showProjectAudioList)}
-                className="text-sm text-blue-600 hover:text-blue-700 font-medium"
-              >
-                {showProjectAudioList ? 'Hide' : 'Show'} audio files ({projectAudio.length})
-              </button>
+              {!readOnly && (
+                <button
+                  type="button"
+                  onClick={() => setShowProjectAudioList(!showProjectAudioList)}
+                  className="text-sm text-blue-600 hover:text-blue-700 font-medium"
+                >
+                  {showProjectAudioList ? 'Hide' : 'Show'} audio files ({projectAudio.length})
+                </button>
+              )}
             </div>
           ) : (
             <div className="p-3 bg-blue-50 border border-blue-200 rounded-md">
@@ -218,19 +225,21 @@ export function AudioSourceSelector() {
                     </p>
                   )}
                 </div>
-                <button
-                  type="button"
-                  onClick={() => setShowProjectAudioList(!showProjectAudioList)}
-                  className="ml-3 text-sm text-blue-600 hover:text-blue-700 font-medium whitespace-nowrap"
-                >
-                  Change
-                </button>
+                {!readOnly && (
+                  <button
+                    type="button"
+                    onClick={() => setShowProjectAudioList(!showProjectAudioList)}
+                    className="ml-3 text-sm text-blue-600 hover:text-blue-700 font-medium whitespace-nowrap"
+                  >
+                    Change
+                  </button>
+                )}
               </div>
             </div>
           )}
 
           {/* Audio File List */}
-          {showProjectAudioList && (
+          {showProjectAudioList && !readOnly && (
             <div className="mt-2 p-3 bg-white border border-gray-200 rounded-md max-h-48 overflow-y-auto">
               <div className="space-y-2">
                 {projectAudio.map((audio: any) => (

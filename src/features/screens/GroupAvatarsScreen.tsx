@@ -8,6 +8,7 @@ import AvatarHoverCard from "@/src/features/avatars/AvatarHoverCard";
 import FloaterBar from "@/src/features/compose/FloaterBar";
 import RecorderOverlay from "@/src/features/compose/RecorderOverlay";
 import { VIEW } from "@/src/lib/constants";
+import { stripHtml } from "@/src/lib/utils";
 
 export default function GroupAvatarsScreen() {
   const {
@@ -20,7 +21,9 @@ export default function GroupAvatarsScreen() {
     setScriptSource,
     projectContent,
     projectAudio,
-    setSelectedProjectAudio
+    setSelectedProjectAudio,
+    contentAttachment,
+    setContentAttachment
   } = useAppState();
   const { avatars, loading, error, fetchForGroup } = useGroupAvatars();
 
@@ -57,32 +60,77 @@ export default function GroupAvatarsScreen() {
       {selectedAvatarIds.size > 0 && (
         <FloaterBar
           value={promptText}
-          onChange={(v) => { setPromptText(v); if (v && audioAttachment) setAudioAttachment(null); }}
+          onChange={(v) => {
+            setPromptText(v);
+            if (v && audioAttachment) {
+              setAudioAttachment(null);
+              setVoiceSource('heygen');
+            }
+            if (v && contentAttachment) {
+              setContentAttachment(null);
+              setScriptSource('manual');
+            }
+          }}
           onSubmit={() => setView(VIEW.REVIEW)}
           actionsOpen={actionsOpen}
           setActionsOpen={setActionsOpen}
           audioAttachment={audioAttachment}
-          onRemoveAudio={() => setAudioAttachment(null)}
-          onRecordAudio={() => setRecorderOpen(true)}
+          onRemoveAudio={() => {
+            setAudioAttachment(null);
+            setVoiceSource('heygen');
+          }}
+          contentAttachment={contentAttachment}
+          onRemoveContent={() => {
+            setContentAttachment(null);
+            setScriptSource('manual');
+            setPromptText("");
+          }}
+          projectAudio={projectAudio}
+          onSelectAudio={(audio) => {
+            setSelectedProjectAudio(audio);
+            setAudioAttachment({
+              url: audio.url,
+              name: audio.name,
+              duration: audio.duration || 0
+            });
+          }}
+          onRecordAudio={() => {
+            // Clear content when recording audio
+            setContentAttachment(null);
+            setScriptSource('manual');
+            setRecorderOpen(true);
+          }}
           onImportContent={() => {
             if (projectContent) {
+              // Clear audio when importing content
+              setAudioAttachment(null);
+              setVoiceSource('heygen');
+              // Set content attachment
               setScriptSource('project_content');
-              setPromptText(projectContent);
-              setView(VIEW.REVIEW);
+              setContentAttachment({ type: 'project_content', name: 'Project Content' });
+              // Strip HTML tags before setting the text
+              const cleanText = stripHtml(projectContent);
+              setPromptText(cleanText);
             } else {
               alert('No project content available to import');
             }
           }}
           onImportAudio={() => {
             if (projectAudio && projectAudio.length > 0) {
+              // Clear content when importing audio
+              setContentAttachment(null);
+              setScriptSource('manual');
+              setPromptText("");
+              // Set audio attachment
               setVoiceSource('project_audio');
-              setSelectedProjectAudio(projectAudio[0]);
+              // Auto-select first audio if only one, otherwise user will select from dropdown
+              const selectedAudio = projectAudio[0];
+              setSelectedProjectAudio(selectedAudio);
               setAudioAttachment({
-                url: projectAudio[0].url,
-                name: projectAudio[0].name,
-                duration: projectAudio[0].duration || 0
+                url: selectedAudio.url,
+                name: selectedAudio.name,
+                duration: selectedAudio.duration || 0
               });
-              setView(VIEW.REVIEW);
             } else {
               alert('No project audio available to import');
             }
@@ -95,6 +143,9 @@ export default function GroupAvatarsScreen() {
         <RecorderOverlay
           onClose={() => setRecorderOpen(false)}
           onSave={(item) => {
+            // Clear content when recording audio
+            setContentAttachment(null);
+            setScriptSource('manual');
             setRecordedAudio(item);
             setVoiceSource('recorded');
             setAudioAttachment(item);

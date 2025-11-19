@@ -38,6 +38,8 @@ type State = {
   setPromptText: (s: string) => void;
   audioAttachment: AudioItem | null;
   setAudioAttachment: (a: AudioItem | null) => void;
+  contentAttachment: { type: 'project_content'; name: string } | null;
+  setContentAttachment: (attachment: { type: 'project_content'; name: string } | null) => void;
 
   // Parent app data (from INIT message)
   parentData: ParentData | null;
@@ -89,6 +91,7 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
   // Prompt and audio
   const [promptText, setPromptText] = useState("");
   const [audioAttachment, setAudioAttachment] = useState<AudioItem | null>(null);
+  const [contentAttachment, setContentAttachment] = useState<{ type: 'project_content'; name: string } | null>(null);
 
   // Parent app data
   const [parentData, setParentData] = useState<ParentData | null>(null);
@@ -127,6 +130,7 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
     selectedAvatarIds, toggleAvatar, clearSelection,
     promptText, setPromptText,
     audioAttachment, setAudioAttachment,
+    contentAttachment, setContentAttachment,
     parentData, setParentData,
     projectContent, setProjectContent,
     projectAudio, setProjectAudio,

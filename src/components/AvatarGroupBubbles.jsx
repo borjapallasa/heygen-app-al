@@ -48,7 +48,9 @@ export default function AvatarGroupBubbles() {
     selectedProjectAudio,
     recordedAudio,
     promptText: globalPromptText,
-    setPromptText: setGlobalPromptText
+    setPromptText: setGlobalPromptText,
+    contentAttachment,
+    setContentAttachment
   } = useAppState(); // ensures API key exists before fetching
 
   // No API key yet: show the same friendly gate
@@ -367,29 +369,64 @@ export default function AvatarGroupBubbles() {
           </div>
 
           <div className="flex justify-center pb-8">
-            <div className="w-full max-w-3xl space-y-6">
-              {/* Script Source Selector */}
-              <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-                <ScriptSourceSelector />
-              </div>
+            <div className="w-full max-w-2xl space-y-6">
+              {/* Determine if audio is selected (audio attachment exists or voice source is not HeyGen) */}
+              {(() => {
+                const hasAudioSelected = audioAttachment !== null || voiceSource !== 'heygen';
+                const hasScriptSelected = contentAttachment !== null || scriptSource === 'project_content' || (globalPromptText && globalPromptText.trim().length > 0);
 
-              {/* Audio Source Selector */}
-              <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-                <AudioSourceSelector />
+                return (
+                  <>
+                    {/* Script Section - Only show if audio is NOT selected */}
+                    {!hasAudioSelected && (
+                      <>
+                        {/* Script Source Selector */}
+                        <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+                          <ScriptSourceSelector readOnly />
+                        </div>
 
-                {/* Record Audio Button */}
-                <div className="mt-4">
-                  <button
-                    onClick={() => setRecorderOpen(true)}
-                    className="w-full px-4 py-2 rounded-lg bg-red-500 text-white hover:bg-red-600 transition-colors flex items-center justify-center gap-2"
-                  >
-                    <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
-                      <path fillRule="evenodd" d="M7 4a3 3 0 016 0v4a3 3 0 11-6 0V4zm4 10.93A7.001 7.001 0 0017 8a1 1 0 10-2 0A5 5 0 015 8a1 1 0 00-2 0 7.001 7.001 0 006 6.93V17H6a1 1 0 100 2h8a1 1 0 100-2h-3v-2.07z" clipRule="evenodd" />
-                    </svg>
-                    Record New Audio
-                  </button>
-                </div>
-              </div>
+                        {/* Script Input (only for manual input or showing project content) */}
+                        {scriptSource === 'manual' && (
+                          <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+                            <label className="block text-sm font-semibold text-slate-700 mb-2">
+                              Script Text
+                            </label>
+                            <textarea
+                              value={globalPromptText || ''}
+                              readOnly
+                              placeholder="Enter your script here..."
+                              className="w-full min-h-[120px] p-3 border border-slate-200 rounded-lg text-sm text-slate-800 bg-slate-50 resize-y cursor-default"
+                            />
+                            <div className="mt-2 text-xs text-slate-500">
+                              {(globalPromptText || '').length} characters
+                            </div>
+                          </div>
+                        )}
+                      </>
+                    )}
+
+                    {/* Audio Section - Only show if script/content is NOT selected */}
+                    {!hasScriptSelected && (
+                      <>
+                        {/* Audio Source Selector */}
+                        <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+                          <AudioSourceSelector readOnly />
+                        </div>
+                      </>
+                    )}
+
+                    {/* Show message if user needs to go back to change selection */}
+                    {(hasAudioSelected || hasScriptSelected) && (
+                      <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 shadow-sm">
+                        <p className="text-sm text-slate-600 text-center">
+                          {hasAudioSelected && 'Audio is selected. Go back to change script/content.'}
+                          {hasScriptSelected && !hasAudioSelected && 'Script/Content is selected. Go back to change audio.'}
+                        </p>
+                      </div>
+                    )}
+                  </>
+                );
+              })()}
 
               {generationError && (
                 <div className="bg-red-50 border border-red-200 text-red-700 rounded-xl p-4 text-sm">
@@ -397,23 +434,46 @@ export default function AvatarGroupBubbles() {
                 </div>
               )}
 
-              <button
-                onClick={handleGenerateVideos}
-                disabled={isGenerating}
-                className="w-full px-4 py-3 rounded-2xl bg-black text-white hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-              >
+              {(() => {
+                // Check if script/content is available
+                const hasScript = (globalPromptText && globalPromptText.trim().length > 0) || contentAttachment !== null || scriptSource === 'project_content';
+                // Check if audio is available
+                const hasAudio = audioAttachment !== null || voiceSource !== 'heygen';
+                // Button should be enabled if we have script OR audio, and avatars are selected
+                const canGenerate = selectedAvatarIds.size > 0 && (hasScript || hasAudio);
+
+                return (
+                  <button
+                    onClick={handleGenerateVideos}
+                    disabled={isGenerating || !canGenerate}
+                    className="w-full px-4 py-3 rounded-2xl bg-black text-white hover:opacity-90 disabled:bg-gray-400 disabled:cursor-not-allowed transition-opacity"
+                  >
                 {isGenerating ? (
-                  <>
-                    <svg className="animate-spin h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                  <span className="flex items-center justify-center gap-2">
+                    <svg className="animate-spin h-5 w-5" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
                     </svg>
-                    Generating...
-                  </>
+                    Generating Video...
+                  </span>
                 ) : (
                   'Generate Video'
                 )}
-              </button>
+                  </button>
+                );
+              })()}
+
+              {/* Help Text */}
+              {(() => {
+                const hasScript = (globalPromptText && globalPromptText.trim().length > 0) || contentAttachment !== null || scriptSource === 'project_content';
+                const hasAudio = audioAttachment !== null || voiceSource !== 'heygen';
+                return (
+                  <div className="text-xs text-slate-500 text-center">
+                    {selectedAvatarIds.size === 0 && 'Please select at least one avatar to continue'}
+                    {selectedAvatarIds.size > 0 && !hasScript && !hasAudio && 'Please provide a script or audio'}
+                  </div>
+                );
+              })()}
             </div>
           </div>
         </section>
@@ -423,6 +483,9 @@ export default function AvatarGroupBubbles() {
           <RecorderOverlay
             onClose={() => setRecorderOpen(false)}
             onSave={(item) => {
+              // Clear content when recording audio
+              setContentAttachment(null);
+              setScriptSource('manual');
               // Save recorded audio to global state
               setRecordedAudio(item);
               // Set voice source to recorded
@@ -441,38 +504,77 @@ export default function AvatarGroupBubbles() {
             value={promptText}
             onChange={(v) => {
               setPromptText(v);
-              if (v && audioAttachment) setAudioAttachment(null);
+              if (v && audioAttachment) {
+                setAudioAttachment(null);
+                setVoiceSource('heygen');
+              }
+              if (v && contentAttachment) {
+                setContentAttachment(null);
+                setScriptSource('manual');
+              }
             }}
             onSubmit={goToReview}
             actionsOpen={actionsOpen}
             setActionsOpen={setActionsOpen}
             audioAttachment={audioAttachment}
-            onRemoveAudio={() => setAudioAttachment(null)}
-            onRecordAudio={() => setRecorderOpen(true)}
+            onRemoveAudio={() => {
+              setAudioAttachment(null);
+              setVoiceSource('heygen');
+            }}
+            contentAttachment={contentAttachment}
+            onRemoveContent={() => {
+              setContentAttachment(null);
+              setScriptSource('manual');
+              setPromptText("");
+            }}
+            projectAudio={projectAudio}
+            onSelectAudio={(audio) => {
+              setSelectedProjectAudio(audio);
+              setAudioAttachment({
+                url: audio.url,
+                name: audio.name,
+                duration: audio.duration || 0
+              });
+            }}
+            onRecordAudio={() => {
+              // Clear content when recording audio
+              setContentAttachment(null);
+              setScriptSource('manual');
+              setRecorderOpen(true);
+            }}
             onImportContent={() => {
-              // Set script source to project content and navigate to review
+              // Set script source to project content (add pill, don't navigate)
               if (projectContent) {
+                // Clear audio when importing content
+                setAudioAttachment(null);
+                setVoiceSource('heygen');
+                // Set content attachment
                 setScriptSource('project_content');
+                setContentAttachment({ type: 'project_content', name: 'Project Content' });
                 // Strip HTML tags before setting the text
                 const cleanText = stripHtml(projectContent);
                 setPromptText(cleanText);
-                goToReview();
               } else {
                 alert('No project content available to import');
               }
             }}
             onImportAudio={() => {
-              // Set voice source to project audio and navigate to review
+              // Set voice source to project audio (add pill, don't navigate)
               if (projectAudio && projectAudio.length > 0) {
+                // Clear content when importing audio
+                setContentAttachment(null);
+                setScriptSource('manual');
+                setPromptText("");
+                // Set audio attachment
                 setVoiceSource('project_audio');
-                // Optionally auto-select first audio
-                setSelectedProjectAudio(projectAudio[0]);
+                // Auto-select first audio if only one, otherwise user will select from dropdown
+                const selectedAudio = projectAudio[0];
+                setSelectedProjectAudio(selectedAudio);
                 setAudioAttachment({
-                  url: projectAudio[0].url,
-                  name: projectAudio[0].name,
-                  duration: projectAudio[0].duration || 0
+                  url: selectedAudio.url,
+                  name: selectedAudio.name,
+                  duration: selectedAudio.duration || 0
                 });
-                goToReview();
               } else {
                 alert('No project audio available to import');
               }
