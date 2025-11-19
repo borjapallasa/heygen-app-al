@@ -13,7 +13,7 @@ import useHeygenVideos from "@/src/hooks/useHeygenVideos";
 // shared UI
 import { BannerError } from "@/src/features/shared/BannerError";
 import { HeaderBack } from "@/src/features/shared/HeaderBack";
-import Divider from "@/features/shared/Divider";
+import Divider from "@/src/features/shared/Divider";
 
 // avatars UI
 import AvatarBubbleRow from "@/src/features/avatars/AvatarBubbleRow";

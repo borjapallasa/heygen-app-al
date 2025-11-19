@@ -4,7 +4,7 @@
 import useHeygenGroups from "@/src/hooks/useHeygenGroups";
 import useHeygenVideos from "@/src/hooks/useHeygenVideos";
 import { BannerError } from "@/src/features/shared/BannerError";
-import  Divider  from "@/features/shared/Divider";
+import  Divider  from "@/src/features/shared/Divider";
 import AvatarBubbleRow from "@/src/features/avatars/AvatarBubbleRow";
 import VideosSection from "@/src/features/videos/VideosSection";
 import { useAppState } from "@/src/state/AppStateProvider";
