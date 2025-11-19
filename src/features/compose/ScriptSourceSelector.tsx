@@ -1,6 +1,7 @@
 "use client";
 import React from "react";
 import { useAppState } from "@/src/state/AppStateProvider";
+import { stripHtml } from "@/src/lib/utils";
 
 /**
  * ScriptSourceSelector component
@@ -18,9 +19,10 @@ export function ScriptSourceSelector() {
   const handleSourceChange = (source: 'manual' | 'project_content') => {
     setScriptSource(source);
 
-    // If switching to project content, load it into promptText
+    // If switching to project content, load it into promptText (stripped of HTML)
     if (source === 'project_content' && projectContent) {
-      setPromptText(projectContent);
+      const cleanText = stripHtml(projectContent);
+      setPromptText(cleanText);
     }
   };
 
@@ -106,6 +108,21 @@ export function ScriptSourceSelector() {
           </p>
         </button>
       </div>
+
+      {/* Textarea when manual input is selected */}
+      {scriptSource === 'manual' && (
+        <div className="mt-3">
+          <textarea
+            value={promptText}
+            onChange={(e) => setPromptText(e.target.value)}
+            placeholder="Type your script here..."
+            className="w-full min-h-[120px] p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-y text-sm"
+          />
+          <p className="mt-1 text-xs text-gray-500">
+            {promptText.length} characters
+          </p>
+        </div>
+      )}
 
       {/* Preview when project content is selected */}
       {scriptSource === 'project_content' && projectContent && (

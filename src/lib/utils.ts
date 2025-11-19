@@ -44,6 +44,34 @@ export function chunkAvatarsForRows<T>(list: T[]) {
 }
 
 /**
+ * Strip HTML tags from text and decode HTML entities
+ * Converts HTML content to plain text
+ */
+export function stripHtml(html: string): string {
+  if (!html) return '';
+
+  // Create a temporary DOM element to parse HTML
+  if (typeof document !== 'undefined') {
+    const temp = document.createElement('div');
+    temp.innerHTML = html;
+    return temp.textContent || temp.innerText || '';
+  }
+
+  // Fallback for server-side (basic regex replacement)
+  return html
+    .replace(/<br\s*\/?>/gi, '\n') // Convert <br> to newlines
+    .replace(/<\/p>/gi, '\n\n') // Convert </p> to double newlines
+    .replace(/<[^>]+>/g, '') // Remove all HTML tags
+    .replace(/&nbsp;/g, ' ') // Convert &nbsp; to space
+    .replace(/&amp;/g, '&') // Convert &amp; to &
+    .replace(/&lt;/g, '<') // Convert &lt; to <
+    .replace(/&gt;/g, '>') // Convert &gt; to >
+    .replace(/&quot;/g, '"') // Convert &quot; to "
+    .replace(/&#39;/g, "'") // Convert &#39; to '
+    .trim();
+}
+
+/**
  * Run assertions/checks on app startup
  * This is a placeholder for any initialization checks
  */

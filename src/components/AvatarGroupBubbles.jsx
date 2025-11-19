@@ -3,6 +3,7 @@
 import React, { useEffect, useState } from "react";
 import { useAppState } from "@/src/state/AppStateProvider";
 import { VIEW, HEYGEN } from "@/src/lib/constants";
+import { stripHtml } from "@/src/lib/utils";
 
 // hooks
 import useHeygenGroups from "@/src/hooks/useHeygenGroups";
@@ -135,6 +136,31 @@ export default function AvatarGroupBubbles() {
         throw new Error('Please provide a script');
       }
 
+      // Handle recorded audio upload if needed
+      let uploadedAudioUrl = null;
+      if (voiceSource === 'recorded' && recordedAudio?.blob) {
+        try {
+          const formData = new FormData();
+          formData.append('file', recordedAudio.blob, `recording-${Date.now()}.webm`);
+          formData.append('organizationId', parentData?.organizationId || '5ec92adf-57cb-4d08-817a-f523cc308cda');
+
+          const uploadResponse = await fetch('/api/upload/audio', {
+            method: 'POST',
+            body: formData
+          });
+
+          if (!uploadResponse.ok) {
+            throw new Error('Failed to upload recorded audio');
+          }
+
+          const uploadData = await uploadResponse.json();
+          uploadedAudioUrl = uploadData.url;
+        } catch (uploadError) {
+          console.error('Audio upload error:', uploadError);
+          throw new Error('Failed to upload recorded audio. Please try again.');
+        }
+      }
+
       // Prepare metadata
       const metadata = {
         avatarIds: selected.map(a => a.id),
@@ -145,10 +171,13 @@ export default function AvatarGroupBubbles() {
         script,
         voiceSource,
         audioUrl: voiceSource === 'project_audio' ? selectedProjectAudio?.url :
-                  voiceSource === 'recorded' ? recordedAudio?.url : null,
+                  voiceSource === 'recorded' ? uploadedAudioUrl : null,
         audioName: voiceSource === 'project_audio' ? selectedProjectAudio?.name :
                    voiceSource === 'recorded' ? recordedAudio?.name : null
       };
+
+      // Generate a correlation UUID for tracking
+      const correlationUuid = crypto.randomUUID();
 
       // Create job in database
       const jobResponse = await fetch('/api/jobs', {
@@ -156,6 +185,8 @@ export default function AvatarGroupBubbles() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           organization_uuid: parentData?.organizationId || '5ec92adf-57cb-4d08-817a-f523cc308cda',
+          correlation_uuid: correlationUuid,
+          callback_url: '', // Empty string instead of null to satisfy NOT NULL constraint
           status: 'pending',
           metadata
         })
@@ -399,7 +430,9 @@ export default function AvatarGroupBubbles() {
               // Set script source to project content and navigate to review
               if (projectContent) {
                 setScriptSource('project_content');
-                setPromptText(projectContent);
+                // Strip HTML tags before setting the text
+                const cleanText = stripHtml(projectContent);
+                setPromptText(cleanText);
                 goToReview();
               } else {
                 alert('No project content available to import');

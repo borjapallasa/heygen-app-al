@@ -200,20 +200,28 @@ export function AudioSourceSelector() {
           ) : (
             <div className="p-3 bg-blue-50 border border-blue-200 rounded-md">
               <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-medium text-blue-900">
-                    {selectedProjectAudio.name}
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium text-blue-900 truncate">
+                    {selectedProjectAudio.name || selectedProjectAudio.metadata?.name || selectedProjectAudio.metadata?.filename || `Audio ${selectedProjectAudio.media_uuid?.substring(0, 8)}` || 'Unnamed audio file'}
                   </p>
-                  {selectedProjectAudio.duration && (
-                    <p className="text-xs text-blue-600">
+                  {selectedProjectAudio.duration ? (
+                    <p className="text-xs text-blue-600 mt-1">
                       Duration: {formatDuration(selectedProjectAudio.duration)}
+                    </p>
+                  ) : selectedProjectAudio.metadata?.duration ? (
+                    <p className="text-xs text-blue-600 mt-1">
+                      Duration: {formatDuration(selectedProjectAudio.metadata.duration)}
+                    </p>
+                  ) : (
+                    <p className="text-xs text-blue-600 mt-1">
+                      Audio file
                     </p>
                   )}
                 </div>
                 <button
                   type="button"
                   onClick={() => setShowProjectAudioList(!showProjectAudioList)}
-                  className="text-sm text-blue-600 hover:text-blue-700"
+                  className="ml-3 text-sm text-blue-600 hover:text-blue-700 font-medium whitespace-nowrap"
                 >
                   Change
                 </button>

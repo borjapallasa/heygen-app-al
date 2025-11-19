@@ -15,6 +15,7 @@ export default function RecorderOverlay({ onClose, onSave }) {
   const chunksRef = useRef([]);
   const timerRef = useRef(null);
   const streamRef = useRef(null);
+  const savedRef = useRef(false);
 
   useEffect(() => {
     return () => {
@@ -22,7 +23,10 @@ export default function RecorderOverlay({ onClose, onSave }) {
       if (streamRef.current) {
         streamRef.current.getTracks().forEach(track => track.stop());
       }
-      if (audioUrl) URL.revokeObjectURL(audioUrl);
+      // Only revoke URL if not saved (i.e., user cancelled)
+      if (audioUrl && !savedRef.current) {
+        URL.revokeObjectURL(audioUrl);
+      }
     };
   }, [audioUrl]);
 
@@ -74,6 +78,7 @@ export default function RecorderOverlay({ onClose, onSave }) {
 
   const handleSave = () => {
     if (audioBlob && audioUrl) {
+      savedRef.current = true; // Mark as saved to prevent URL revocation
       const item = {
         url: audioUrl,
         blob: audioBlob,

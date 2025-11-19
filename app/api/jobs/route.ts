@@ -112,7 +112,7 @@ export async function POST(request: NextRequest) {
         organization_uuid,
         external_job_id: external_job_id || null,
         correlation_uuid: correlation_uuid || null,
-        callback_url: callback_url || null,
+        callback_url: callback_url || '', // Use empty string if not provided
         status,
         metadata: metadata || {}
       })

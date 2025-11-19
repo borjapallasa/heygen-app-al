@@ -6,11 +6,15 @@ import useHeygenGroups from "@/src/hooks/useHeygenGroups";
 import useJobPolling from "@/src/hooks/useJobPolling";
 import AvatarGrid from "@/src/features/avatars/AvatarGrid";
 import { timeAgo } from "@/src/lib/utils";
+import { useAppState } from "@/src/state/AppStateProvider";
+import { useToast } from "@/src/features/shared/Toast";
 
 export default function VideosPane({ onGroupSelect } = {}) {
   const { videos, loading, error, fetchThumbnailForVideo } = useHeygenVideos();
   const { groups } = useHeygenGroups();
   const { jobs, loading: jobsLoading, updateJobStatus } = useJobPolling();
+  const { apiKey } = useAppState();
+  const { showToast, ToastContainer } = useToast();
   const [openMenuId, setOpenMenuId] = useState(null);
   const [showGroupModal, setShowGroupModal] = useState(false);
   const videoRefs = useRef(new Map());
@@ -35,25 +39,87 @@ export default function VideosPane({ onGroupSelect } = {}) {
     setOpenMenuId(openMenuId === videoId ? null : videoId);
   };
 
-  const handleImport = (video) => {
+  const handleImport = async (video) => {
     console.log("Import video:", video);
-    // TODO: Implement import to project
     setOpenMenuId(null);
+
+    try {
+      // Fetch full video details to get the video URL
+      const videoId = video.id || video.video_id;
+      const response = await fetch(`/api/heygen/video/${videoId}`, {
+        headers: {
+          'x-api-key': apiKey
+        }
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to fetch video details');
+      }
+
+      const videoData = await response.json();
+      const videoUrl = videoData.video_url || videoData.data?.video_url;
+
+      if (!videoUrl) {
+        throw new Error('Video URL not available');
+      }
+
+      // Send video to parent app via postMessage
+      if (window.parent && window.parent !== window) {
+        window.parent.postMessage({
+          type: 'IMPORT_VIDEO',
+          payload: {
+            video_url: videoUrl,
+            thumbnail_url: video.thumb || video.thumbnail_url,
+            title: video.title || video.video_title,
+            duration: videoData.duration || videoData.data?.duration,
+            video_id: videoId
+          }
+        }, '*');
+
+        // Show success toast
+        showToast('Video imported successfully!', 'success', 2000);
+      } else {
+        console.warn('This app must be embedded in an iframe to import videos.');
+        showToast('This app must be embedded in an iframe to import videos.', 'warning');
+      }
+    } catch (error) {
+      console.error('Import error:', error);
+      // Only show toast if it's not an abort error (which happens during page refresh)
+      if (error.name !== 'AbortError' && !error.message?.includes('aborted')) {
+        showToast('Failed to import video: ' + error.message, 'error');
+      }
+    }
   };
 
-  const handleDownload = (video) => {
-    if (video.video_url) {
-      window.open(video.video_url, '_blank');
-    }
+  const handleDownload = async (video) => {
     setOpenMenuId(null);
-  };
 
-  const handleDelete = (video) => {
-    if (confirm(`Are you sure you want to delete "${video.title || video.video_title}"?`)) {
-      console.log("Delete video:", video);
-      // TODO: Implement delete
+    try {
+      // Fetch full video details to get the video URL
+      const videoId = video.id || video.video_id;
+      const response = await fetch(`/api/heygen/video/${videoId}`, {
+        headers: {
+          'x-api-key': apiKey
+        }
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to fetch video details');
+      }
+
+      const videoData = await response.json();
+      const videoUrl = videoData.video_url || videoData.data?.video_url;
+
+      if (!videoUrl) {
+        throw new Error('Video URL not available');
+      }
+
+      // Open video URL in new tab
+      window.open(videoUrl, '_blank');
+    } catch (error) {
+      console.error('Download error:', error);
+      alert('Failed to download video: ' + error.message);
     }
-    setOpenMenuId(null);
   };
 
   // Intersection Observer for lazy loading thumbnails
@@ -346,15 +412,6 @@ export default function VideosPane({ onGroupSelect } = {}) {
                             </svg>
                             Download
                           </button>
-                          <button
-                            onClick={() => handleDelete(video)}
-                            className="w-full px-4 py-2 text-left text-sm text-red-600 hover:bg-red-50 flex items-center gap-3"
-                          >
-                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                            </svg>
-                            Delete
-                          </button>
                         </div>
                       </>
                     )}
@@ -395,6 +452,9 @@ export default function VideosPane({ onGroupSelect } = {}) {
       </div>,
       document.body
     )}
+
+    {/* Toast notifications */}
+    <ToastContainer />
   </>
   );
 }
