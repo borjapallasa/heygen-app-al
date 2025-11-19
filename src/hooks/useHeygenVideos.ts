@@ -116,7 +116,7 @@ export default function useHeygenVideos(): State {
   }, [apiKey]);
 
   // Fetch thumbnail for a single video on-demand (queued)
-  const fetchThumbnailForVideo = useCallback((videoId: string): void => {
+  const fetchThumbnailForVideo = useCallback(async (videoId: string): Promise<void> => {
     if (!apiKey) return;
     
     // Skip if already in queue, loading, has thumbnail, or previously failed
@@ -131,6 +131,7 @@ export default function useHeygenVideos(): State {
     thumbnailQueueRef.current.push(videoId);
     
     // Process queue (will be debounced by processingQueueRef)
+    // Don't await - fire and forget, queue will process asynchronously
     processThumbnailQueue();
   }, [apiKey, processThumbnailQueue]);
 
