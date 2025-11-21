@@ -3,7 +3,7 @@
 import React, { useEffect, useState } from "react";
 import { useAppState } from "@/src/state/AppStateProvider";
 import { VIEW, HEYGEN } from "@/src/lib/constants";
-import { stripHtml } from "@/src/lib/utils";
+import { stripHtml, getAudioUrl } from "@/src/lib/utils";
 
 // hooks
 import useHeygenGroups from "@/src/hooks/useHeygenGroups";
@@ -43,6 +43,7 @@ export default function AvatarGroupBubbles() {
     setSelectedProjectAudio,
     apiKey,
     parentData,
+    projectUuid,
     scriptSource,
     voiceSource,
     selectedProjectAudio,
@@ -50,7 +51,9 @@ export default function AvatarGroupBubbles() {
     promptText: globalPromptText,
     setPromptText: setGlobalPromptText,
     contentAttachment,
-    setContentAttachment
+    setContentAttachment,
+    audioAttachment: globalAudioAttachment,
+    setAudioAttachment: setGlobalAudioAttachment
   } = useAppState(); // ensures API key exists before fetching
 
   // No API key yet: show the same friendly gate
@@ -92,6 +95,9 @@ export default function AvatarGroupBubbles() {
   };
 
   const goToReview = () => {
+    // Sync local state to global state before navigating
+    setGlobalPromptText(promptText);
+    setGlobalAudioAttachment(audioAttachment); // Sync audio attachment
     setView(VIEW.REVIEW);
     try { window?.scrollTo?.({ top: 0, behavior: "smooth" }); } catch {}
   };
@@ -129,6 +135,9 @@ export default function AvatarGroupBubbles() {
         throw new Error('No avatars selected');
       }
 
+      // Check if audio is available (audio can be used without script)
+      const hasAudio = audioAttachment !== null || voiceSource !== 'heygen';
+      
       // Determine script based on source and strip HTML tags
       // Use global promptText from AppStateProvider (not local state)
       let script = '';
@@ -140,10 +149,13 @@ export default function AvatarGroupBubbles() {
         script = globalPromptText || '';
       }
 
-      // Trim and validate script
+      // Trim script
       script = script.trim();
-      if (!script || script.length === 0) {
-        throw new Error('Please provide a script');
+      
+      // Only require script if audio is not available
+      const hasScript = script && script.length > 0;
+      if (!hasScript && !hasAudio) {
+        throw new Error('Please provide a script or audio');
       }
 
       // Handle recorded audio upload if needed
@@ -189,6 +201,11 @@ export default function AvatarGroupBubbles() {
       // Generate a correlation UUID for tracking
       const correlationUuid = crypto.randomUUID();
 
+      // Determine media_uuid (only when using project audio)
+      const mediaUuid = voiceSource === 'project_audio' && selectedProjectAudio?.media_uuid
+        ? selectedProjectAudio.media_uuid
+        : null;
+
       // Create job in database
       const jobResponse = await fetch('/api/jobs', {
         method: 'POST',
@@ -198,7 +215,9 @@ export default function AvatarGroupBubbles() {
           correlation_uuid: correlationUuid,
           callback_url: '', // Empty string instead of null to satisfy NOT NULL constraint
           status: 'pending',
-          metadata
+          metadata,
+          project_uuid: projectUuid || null,
+          media_uuid: mediaUuid
         })
       });
 
@@ -219,6 +238,7 @@ export default function AvatarGroupBubbles() {
       setSelectedAvatarIds(new Set());
       setPromptText('');
       setAudioAttachment(null);
+      setGlobalAudioAttachment(null); // Also clear global state
 
       // Refetch videos and jobs to show the new pending job
       if (refetchFunctions) {
@@ -385,23 +405,6 @@ export default function AvatarGroupBubbles() {
                           <ScriptSourceSelector readOnly />
                         </div>
 
-                        {/* Script Input (only for manual input or showing project content) */}
-                        {scriptSource === 'manual' && (
-                          <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-                            <label className="block text-sm font-semibold text-slate-700 mb-2">
-                              Script Text
-                            </label>
-                            <textarea
-                              value={globalPromptText || ''}
-                              readOnly
-                              placeholder="Enter your script here..."
-                              className="w-full min-h-[120px] p-3 border border-slate-200 rounded-lg text-sm text-slate-800 bg-slate-50 resize-y cursor-default"
-                            />
-                            <div className="mt-2 text-xs text-slate-500">
-                              {(globalPromptText || '').length} characters
-                            </div>
-                          </div>
-                        )}
                       </>
                     )}
 
@@ -492,7 +495,9 @@ export default function AvatarGroupBubbles() {
               setVoiceSource('recorded');
               // Also set local audio attachment
               setAudioAttachment(item);
+              setGlobalAudioAttachment(item); // Also update global state
               setPromptText("");
+              setGlobalPromptText(""); // Also clear global state
               setRecorderOpen(false);
             }}
           />
@@ -504,8 +509,10 @@ export default function AvatarGroupBubbles() {
             value={promptText}
             onChange={(v) => {
               setPromptText(v);
+              setGlobalPromptText(v); // Also update global state so ScriptSourceSelector can see it
               if (v && audioAttachment) {
                 setAudioAttachment(null);
+                setGlobalAudioAttachment(null); // Also clear global state
                 setVoiceSource('heygen');
               }
               if (v && contentAttachment) {
@@ -519,6 +526,7 @@ export default function AvatarGroupBubbles() {
             audioAttachment={audioAttachment}
             onRemoveAudio={() => {
               setAudioAttachment(null);
+              setGlobalAudioAttachment(null); // Also clear global state
               setVoiceSource('heygen');
             }}
             contentAttachment={contentAttachment}
@@ -526,15 +534,18 @@ export default function AvatarGroupBubbles() {
               setContentAttachment(null);
               setScriptSource('manual');
               setPromptText("");
+              setGlobalPromptText(""); // Also clear global state
             }}
             projectAudio={projectAudio}
             onSelectAudio={(audio) => {
               setSelectedProjectAudio(audio);
-              setAudioAttachment({
-                url: audio.url,
+              const audioItem = {
+                url: audio.url || getAudioUrl(audio.name),
                 name: audio.name,
                 duration: audio.duration || 0
-              });
+              };
+              setAudioAttachment(audioItem);
+              setGlobalAudioAttachment(audioItem); // Also update global state
             }}
             onRecordAudio={() => {
               // Clear content when recording audio
@@ -554,6 +565,7 @@ export default function AvatarGroupBubbles() {
                 // Strip HTML tags before setting the text
                 const cleanText = stripHtml(projectContent);
                 setPromptText(cleanText);
+                setGlobalPromptText(cleanText); // Also update global state
               } else {
                 alert('No project content available to import');
               }
@@ -570,11 +582,13 @@ export default function AvatarGroupBubbles() {
                 // Auto-select first audio if only one, otherwise user will select from dropdown
                 const selectedAudio = projectAudio[0];
                 setSelectedProjectAudio(selectedAudio);
-                setAudioAttachment({
-                  url: selectedAudio.url,
+                const audioItem = {
+                  url: selectedAudio.url || getAudioUrl(selectedAudio.name),
                   name: selectedAudio.name,
                   duration: selectedAudio.duration || 0
-                });
+                };
+                setAudioAttachment(audioItem);
+                setGlobalAudioAttachment(audioItem); // Also update global state
               } else {
                 alert('No project audio available to import');
               }

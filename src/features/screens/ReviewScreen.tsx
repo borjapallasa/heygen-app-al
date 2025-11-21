@@ -2,7 +2,7 @@
 import { useMemo, useState } from "react";
 import { useAppState } from "@/src/state/AppStateProvider";
 import { HeaderBack } from "@/src/features/shared/HeaderBack";
-import { chunkAvatarsForRows } from "@/src/lib/utils";
+import { chunkAvatarsForRows, stripHtml } from "@/src/lib/utils";
 import { VIEW } from "@/src/lib/constants";
 import ScriptSourceSelector from "@/src/features/compose/ScriptSourceSelector";
 import AudioSourceSelector from "@/src/features/compose/AudioSourceSelector";
@@ -17,7 +17,8 @@ export default function ReviewScreen() {
     audioAttachment,
     scriptSource,
     voiceSource,
-    contentAttachment
+    contentAttachment,
+    projectContent
   } = useAppState();
 
   const [isGenerating, setIsGenerating] = useState(false);
@@ -75,20 +76,26 @@ export default function ReviewScreen() {
                 <ScriptSourceSelector readOnly />
               </div>
 
-              {/* Script Input (only for manual input or showing project content) */}
-              {scriptSource === 'manual' && (
+              {/* Script Preview - Show for project content */}
+              {scriptSource === 'project_content' && projectContent && (
                 <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-                  <label className="block text-sm font-semibold text-slate-700 mb-2">
-                    Script Text
-                  </label>
-                  <textarea
-                    value={promptText}
-                    readOnly
-                    placeholder="Enter your script here..."
-                    className="w-full min-h-[120px] p-3 border border-slate-200 rounded-lg text-sm text-slate-800 bg-slate-50 resize-y cursor-default"
-                  />
-                  <div className="mt-2 text-xs text-slate-500">
-                    {promptText.length} characters
+                  <div className="p-3 bg-gray-50 border border-gray-200 rounded-md">
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-xs font-medium text-gray-700">
+                        Project Content Preview
+                      </span>
+                    </div>
+                    <div className="text-xs text-gray-600 max-h-32 overflow-y-auto whitespace-pre-wrap">
+                      {(() => {
+                        const cleanContent = stripHtml(projectContent);
+                        return cleanContent.length > 300
+                          ? `${cleanContent.substring(0, 300)}...`
+                          : cleanContent;
+                      })()}
+                    </div>
+                    <div className="mt-2 text-xs text-gray-500">
+                      {stripHtml(projectContent).length} characters
+                    </div>
                   </div>
                 </div>
               )}
@@ -116,11 +123,20 @@ export default function ReviewScreen() {
           )}
 
           {/* Generate Button */}
-          <button
-            className="w-full px-4 py-3 rounded-2xl bg-black text-white hover:opacity-90 disabled:bg-gray-400 disabled:cursor-not-allowed transition-opacity"
-            onClick={handleGenerate}
-            disabled={isGenerating || selectedAvatars.length === 0 || (!promptText && !audioAttachment)}
-          >
+          {(() => {
+            // Check if script/content is available
+            const hasScript = (promptText && promptText.trim().length > 0) || contentAttachment !== null || scriptSource === 'project_content';
+            // Check if audio is available
+            const hasAudio = audioAttachment !== null || voiceSource !== 'heygen';
+            // Button should be enabled if we have script OR audio, and avatars are selected
+            const canGenerate = selectedAvatars.length > 0 && (hasScript || hasAudio);
+
+            return (
+              <button
+                className="w-full px-4 py-3 rounded-2xl bg-black text-white hover:opacity-90 disabled:bg-gray-400 disabled:cursor-not-allowed transition-opacity"
+                onClick={handleGenerate}
+                disabled={isGenerating || !canGenerate}
+              >
             {isGenerating ? (
               <span className="flex items-center justify-center gap-2">
                 <svg className="animate-spin h-5 w-5" viewBox="0 0 24 24">
@@ -132,13 +148,21 @@ export default function ReviewScreen() {
             ) : (
               'Generate Video'
             )}
-          </button>
+              </button>
+            );
+          })()}
 
           {/* Help Text */}
-          <div className="text-xs text-slate-500 text-center">
-            {selectedAvatars.length === 0 && 'Please select at least one avatar to continue'}
-            {selectedAvatars.length > 0 && !promptText && !audioAttachment && 'Please provide a script or audio'}
-          </div>
+          {(() => {
+            const hasScript = (promptText && promptText.trim().length > 0) || contentAttachment !== null || scriptSource === 'project_content';
+            const hasAudio = audioAttachment !== null || voiceSource !== 'heygen';
+            return (
+              <div className="text-xs text-slate-500 text-center">
+                {selectedAvatars.length === 0 && 'Please select at least one avatar to continue'}
+                {selectedAvatars.length > 0 && !hasScript && !hasAudio && 'Please provide a script or audio'}
+              </div>
+            );
+          })()}
         </div>
       </div>
     </>

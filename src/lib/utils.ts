@@ -72,6 +72,16 @@ export function stripHtml(html: string): string {
 }
 
 /**
+ * Construct audio URL from filename
+ * Uses Supabase storage public URL prefix + filename
+ */
+export function getAudioUrl(filename: string): string {
+  if (!filename) return '';
+  const prefix = 'https://ocembqpgkhkwiavhxyzw.supabase.co/storage/v1/object/public/AvatarLabs/';
+  return prefix + filename;
+}
+
+/**
  * Run assertions/checks on app startup
  * This is a placeholder for any initialization checks
  */

@@ -20,6 +20,7 @@ import AppRoot from "./AppRoot";
 export function AppInitializer() {
   const {
     setParentData,
+    setProjectUuid,
     setProjectContent,
     setProjectAudio,
     setIsInitialized,
@@ -90,6 +91,14 @@ export function AppInitializer() {
         permissions: payload.permissions || []
       });
 
+      // Store project UUID
+      if (payload.project?.uuid) {
+        setProjectUuid(payload.project.uuid);
+        logService.debug("Project UUID loaded", {
+          uuid: payload.project.uuid
+        });
+      }
+
       // Store project content (markdown script)
       if (payload.project?.content) {
         setProjectContent(payload.project.content);
@@ -118,6 +127,7 @@ export function AppInitializer() {
   }, [
     isInitialized,
     setParentData,
+    setProjectUuid,
     setProjectContent,
     setProjectAudio,
     setIsInitialized

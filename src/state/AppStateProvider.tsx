@@ -46,6 +46,8 @@ type State = {
   setParentData: (data: ParentData) => void;
 
   // Project data
+  projectUuid: string | null;
+  setProjectUuid: (uuid: string | null) => void;
   projectContent: string | null;
   setProjectContent: (content: string) => void;
   projectAudio: MediaItem[];
@@ -95,6 +97,7 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
 
   // Parent app data
   const [parentData, setParentData] = useState<ParentData | null>(null);
+  const [projectUuid, setProjectUuid] = useState<string | null>(null);
   const [projectContent, setProjectContent] = useState<string | null>(null);
   const [projectAudio, setProjectAudio] = useState<MediaItem[]>([]);
 
@@ -132,6 +135,7 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
     audioAttachment, setAudioAttachment,
     contentAttachment, setContentAttachment,
     parentData, setParentData,
+    projectUuid, setProjectUuid,
     projectContent, setProjectContent,
     projectAudio, setProjectAudio,
     scriptSource, setScriptSource,

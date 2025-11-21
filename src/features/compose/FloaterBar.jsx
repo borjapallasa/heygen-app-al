@@ -30,6 +30,11 @@ export default function FloaterBar({
   onImportContent,
   onImportAudio,
 }) {
+  // Validate that user has provided content or audio
+  const hasContent = (value && value.trim().length > 0) || contentAttachment;
+  const hasAudio = audioAttachment !== null;
+  const canSubmit = hasContent || hasAudio;
+
   return (
     <div className="fixed left-1/2 bottom-6 -translate-x-1/2 z-50">
       <div className="flex flex-col gap-2 rounded-3xl border border-slate-300 bg-white shadow-lg px-3 py-2 w-[min(760px,90vw)]">
@@ -115,7 +120,8 @@ export default function FloaterBar({
 
           <button
             onClick={onSubmit}
-            className="inline-flex items-center justify-center w-11 h-11 sm:w-12 sm:h-12 rounded-full bg-black text-white hover:opacity-90"
+            disabled={!canSubmit}
+            className="inline-flex items-center justify-center w-11 h-11 sm:w-12 sm:h-12 rounded-full bg-black text-white hover:opacity-90 disabled:bg-gray-400 disabled:cursor-not-allowed disabled:opacity-50"
             aria-label="Submit"
           >
             {/* Right arrow, per your spec */}

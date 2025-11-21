@@ -8,7 +8,7 @@ import AvatarHoverCard from "@/src/features/avatars/AvatarHoverCard";
 import FloaterBar from "@/src/features/compose/FloaterBar";
 import RecorderOverlay from "@/src/features/compose/RecorderOverlay";
 import { VIEW } from "@/src/lib/constants";
-import { stripHtml } from "@/src/lib/utils";
+import { stripHtml, getAudioUrl } from "@/src/lib/utils";
 
 export default function GroupAvatarsScreen() {
   const {
@@ -89,7 +89,7 @@ export default function GroupAvatarsScreen() {
           onSelectAudio={(audio) => {
             setSelectedProjectAudio(audio);
             setAudioAttachment({
-              url: audio.url,
+              url: audio.url || getAudioUrl(audio.name),
               name: audio.name,
               duration: audio.duration || 0
             });
@@ -127,7 +127,7 @@ export default function GroupAvatarsScreen() {
               const selectedAudio = projectAudio[0];
               setSelectedProjectAudio(selectedAudio);
               setAudioAttachment({
-                url: selectedAudio.url,
+                url: selectedAudio.url || getAudioUrl(selectedAudio.name),
                 name: selectedAudio.name,
                 duration: selectedAudio.duration || 0
               });

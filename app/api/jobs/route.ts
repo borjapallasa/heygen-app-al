@@ -59,7 +59,9 @@ export async function GET(request: NextRequest) {
  *   correlation_uuid?: string,
  *   callback_url?: string,
  *   status?: string (default: 'pending'),
- *   metadata?: object
+ *   metadata?: object,
+ *   project_uuid?: string,
+ *   media_uuid?: string
  * }
  */
 export async function POST(request: NextRequest) {
@@ -71,7 +73,9 @@ export async function POST(request: NextRequest) {
       correlation_uuid,
       callback_url,
       status = 'pending',
-      metadata
+      metadata,
+      project_uuid,
+      media_uuid
     } = body;
 
     if (!organization_uuid) {
@@ -114,7 +118,9 @@ export async function POST(request: NextRequest) {
         correlation_uuid: correlation_uuid || null,
         callback_url: callback_url || '', // Use empty string if not provided
         status,
-        metadata: metadata || {}
+        metadata: metadata || {},
+        project_uuid: project_uuid || null,
+        media_uuid: media_uuid || null
       })
       .select()
       .single();
