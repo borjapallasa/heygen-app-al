@@ -126,8 +126,11 @@ export default function GroupAvatarsScreen() {
               // Auto-select first audio if only one, otherwise user will select from dropdown
               const selectedAudio = projectAudio[0];
               setSelectedProjectAudio(selectedAudio);
+              // Use the URL from MediaItem directly (it comes from parent app)
+              // Parent app sends URL in 'public_url' field, fallback to 'url' field
+              const projectAudioUrl = (selectedAudio as any)?.public_url || selectedAudio?.url;
               setAudioAttachment({
-                url: selectedAudio.url || getAudioUrl(selectedAudio.name),
+                url: projectAudioUrl || getAudioUrl(selectedAudio.name),
                 name: selectedAudio.name,
                 duration: selectedAudio.duration || 0
               });

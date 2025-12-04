@@ -46,21 +46,36 @@ export function chunkAvatarsForRows<T>(list: T[]) {
 /**
  * Strip HTML tags from text and decode HTML entities
  * Converts HTML content to plain text
+ * Note: <p> tags (including empty <p></p>) are treated as spaces
  */
 export function stripHtml(html: string): string {
   if (!html) return '';
 
+  // Pre-process: Replace <p> tags with spaces before parsing
+  // This ensures empty <p></p> tags are preserved as spacing
+  // Handle both <p></p> (empty) and <p>content</p> (with content)
+  let processedHtml = html
+    .replace(/<p\s*\/?>/gi, ' ') // Convert <p> or <p/> to space
+    .replace(/<\/p>/gi, ' '); // Convert </p> to space
+
   // Create a temporary DOM element to parse HTML
   if (typeof document !== 'undefined') {
     const temp = document.createElement('div');
-    temp.innerHTML = html;
-    return temp.textContent || temp.innerText || '';
+    temp.innerHTML = processedHtml;
+    return (temp.textContent || temp.innerText || '')
+      .replace(/&nbsp;/g, ' ') // Convert &nbsp; to space
+      .replace(/&amp;/g, '&') // Convert &amp; to &
+      .replace(/&lt;/g, '<') // Convert &lt; to <
+      .replace(/&gt;/g, '>') // Convert &gt; to >
+      .replace(/&quot;/g, '"') // Convert &quot; to "
+      .replace(/&#39;/g, "'") // Convert &#39; to '
+      .replace(/\s+/g, ' ') // Normalize multiple spaces to single space
+      .trim();
   }
 
   // Fallback for server-side (basic regex replacement)
-  return html
+  return processedHtml
     .replace(/<br\s*\/?>/gi, '\n') // Convert <br> to newlines
-    .replace(/<\/p>/gi, '\n\n') // Convert </p> to double newlines
     .replace(/<[^>]+>/g, '') // Remove all HTML tags
     .replace(/&nbsp;/g, ' ') // Convert &nbsp; to space
     .replace(/&amp;/g, '&') // Convert &amp; to &
@@ -68,6 +83,7 @@ export function stripHtml(html: string): string {
     .replace(/&gt;/g, '>') // Convert &gt; to >
     .replace(/&quot;/g, '"') // Convert &quot; to "
     .replace(/&#39;/g, "'") // Convert &#39; to '
+    .replace(/\s+/g, ' ') // Normalize multiple spaces to single space
     .trim();
 }
 

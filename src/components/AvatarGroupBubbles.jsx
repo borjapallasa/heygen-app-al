@@ -539,8 +539,11 @@ export default function AvatarGroupBubbles() {
             projectAudio={projectAudio}
             onSelectAudio={(audio) => {
               setSelectedProjectAudio(audio);
+              // Use the URL from MediaItem directly (it comes from parent app)
+              // Parent app sends URL in 'public_url' field, fallback to 'url' field
+              const projectAudioUrl = audio?.public_url || audio?.url;
               const audioItem = {
-                url: audio.url || getAudioUrl(audio.name),
+                url: projectAudioUrl || getAudioUrl(audio.name),
                 name: audio.name,
                 duration: audio.duration || 0
               };
@@ -581,12 +584,42 @@ export default function AvatarGroupBubbles() {
                 setVoiceSource('project_audio');
                 // Auto-select first audio if only one, otherwise user will select from dropdown
                 const selectedAudio = projectAudio[0];
+                console.log('Importing project audio:', {
+                  selectedAudio: {
+                    url: selectedAudio.url,
+                    name: selectedAudio.name,
+                    hasUrl: !!selectedAudio.url,
+                    fullObject: selectedAudio
+                  }
+                });
+                
                 setSelectedProjectAudio(selectedAudio);
+                
+                // Use the URL from MediaItem directly (it comes from parent app)
+                // Parent app sends URL in 'public_url' field, fallback to 'url' field
+                const projectAudioUrl = selectedAudio?.public_url || selectedAudio?.url;
+                const audioUrl = (projectAudioUrl && projectAudioUrl.trim()) 
+                  ? projectAudioUrl 
+                  : getAudioUrl(selectedAudio.name);
+                
+                if (!projectAudioUrl || !projectAudioUrl.trim()) {
+                  console.warn('WARNING: selectedAudio.public_url and selectedAudio.url are both missing or empty! Falling back to getAudioUrl()', {
+                    name: selectedAudio.name,
+                    public_url: selectedAudio?.public_url,
+                    url: selectedAudio?.url,
+                    constructedUrl: audioUrl,
+                    fullMediaItem: selectedAudio
+                  });
+                } else {
+                  console.log('Using MediaItem URL from parent app (public_url or url):', audioUrl);
+                }
+                
                 const audioItem = {
-                  url: selectedAudio.url || getAudioUrl(selectedAudio.name),
+                  url: audioUrl,
                   name: selectedAudio.name,
                   duration: selectedAudio.duration || 0
                 };
+                console.log('Setting audioAttachment:', audioItem);
                 setAudioAttachment(audioItem);
                 setGlobalAudioAttachment(audioItem); // Also update global state
               } else {

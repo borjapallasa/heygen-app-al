@@ -195,7 +195,48 @@ function AudioChip({ item, onRemove, projectAudio = [], onSelectAudio }) {
         </span>
       )}
       {item.url && (
-        <audio src={item.url} controls className="h-6" />
+        <audio 
+          src={item.url} 
+          controls 
+          className="h-6" 
+          key={item.url}
+          preload="metadata"
+          onError={(e) => {
+            const audioEl = e.currentTarget;
+            const error = audioEl.error;
+            console.error('FloaterBar audio loading error:', {
+              url: item.url,
+              networkState: audioEl.networkState,
+              readyState: audioEl.readyState,
+              error: error,
+              errorMessage: error?.message,
+              errorCode: error?.code,
+              errorName: error?.name
+            });
+            // Try to reload if it's a network error (code 2 = MEDIA_ERR_NETWORK)
+            if (error && error.code === 2) {
+              console.log('Network error detected, attempting reload...');
+              setTimeout(() => {
+                audioEl.load();
+              }, 1000);
+            }
+          }}
+          onLoadStart={() => {
+            console.log('FloaterBar audio load started:', item.url);
+          }}
+          onCanPlay={() => {
+            console.log('FloaterBar audio can play:', item.url);
+          }}
+          onLoadedData={() => {
+            console.log('FloaterBar audio data loaded:', item.url);
+          }}
+          onStalled={() => {
+            console.warn('FloaterBar audio stalled:', item.url);
+          }}
+          onSuspend={() => {
+            console.warn('FloaterBar audio suspended:', item.url);
+          }}
+        />
       )}
       <button onClick={onRemove} className="text-slate-500 hover:text-slate-700" aria-label="Remove audio">
         <X className="w-4 h-4" />

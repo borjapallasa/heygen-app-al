@@ -33,8 +33,11 @@ export function AudioSourceSelector({ readOnly = false }: { readOnly?: boolean }
 
     // Set audio attachment when switching to project audio
     if (source === 'project_audio' && selectedProjectAudio) {
+      // Use the URL from MediaItem directly (it comes from parent app)
+      // Parent app sends URL in 'public_url' field, fallback to 'url' field
+      const projectAudioUrl = (selectedProjectAudio as any)?.public_url || selectedProjectAudio.url;
       setAudioAttachment({
-        url: selectedProjectAudio.url || getAudioUrl(selectedProjectAudio.name),
+        url: projectAudioUrl || getAudioUrl(selectedProjectAudio.name),
         name: selectedProjectAudio.name,
         duration: selectedProjectAudio.duration || 0
       });
@@ -49,8 +52,11 @@ export function AudioSourceSelector({ readOnly = false }: { readOnly?: boolean }
   const handleProjectAudioSelect = (audio: any) => {
     if (readOnly) return;
     setSelectedProjectAudio(audio);
+    // Use the URL from MediaItem directly (it comes from parent app)
+    // Parent app sends URL in 'public_url' field, fallback to 'url' field
+    const projectAudioUrl = audio?.public_url || audio.url;
     setAudioAttachment({
-      url: audio.url || getAudioUrl(audio.name),
+      url: projectAudioUrl || getAudioUrl(audio.name),
       name: audio.name,
       duration: audio.duration || 0
     });
@@ -202,17 +208,57 @@ export function AudioSourceSelector({ readOnly = false }: { readOnly?: boolean }
         let audioType = 'audio/mpeg';
 
         if (voiceSource === 'project_audio') {
-          // For project audio, check both audioAttachment and selectedProjectAudio
-          // Priority: audioAttachment first (if it has URL), then selectedProjectAudio
-          if (audioAttachment) {
-            audioUrl = audioAttachment.url || (audioAttachment.name ? getAudioUrl(audioAttachment.name) : null);
-            audioName = audioAttachment.name || 'Audio file';
-          }
+          // For project audio, prioritize selectedProjectAudio.url (most reliable source)
+          // Then check audioAttachment.url, then fallback to getAudioUrl
+          console.log('AudioSourceSelector - Resolving project audio URL:', {
+            selectedProjectAudio: selectedProjectAudio ? {
+              url: selectedProjectAudio.url,
+              name: selectedProjectAudio.name,
+              hasUrl: !!selectedProjectAudio.url
+            } : null,
+            audioAttachment: audioAttachment ? {
+              url: audioAttachment.url,
+              name: audioAttachment.name,
+              hasUrl: !!audioAttachment.url
+            } : null
+          });
           
-          // Always also check selectedProjectAudio as fallback or if audioAttachment doesn't have URL
-          if (!audioUrl && selectedProjectAudio) {
-            audioUrl = selectedProjectAudio.url || (selectedProjectAudio.name ? getAudioUrl(selectedProjectAudio.name) : null);
+          // Check for URL in public_url (parent app format) or url field
+          const projectAudioUrl = (selectedProjectAudio as any)?.public_url || selectedProjectAudio?.url;
+          if (projectAudioUrl && projectAudioUrl.trim()) {
+            // Use URL directly from MediaItem (comes from parent app)
+            audioUrl = projectAudioUrl;
             audioName = selectedProjectAudio.name || selectedProjectAudio.metadata?.name || selectedProjectAudio.metadata?.filename || 'Audio file';
+            // Use MIME type from MediaItem if available
+            if (selectedProjectAudio.mime_type) {
+              audioType = selectedProjectAudio.mime_type;
+            }
+            console.log('Using selectedProjectAudio URL (public_url or url):', audioUrl);
+          } else if (audioAttachment?.url && audioAttachment.url.trim()) {
+            // Fallback to audioAttachment URL
+            audioUrl = audioAttachment.url;
+            audioName = audioAttachment.name || 'Audio file';
+            console.log('Using audioAttachment.url:', audioUrl);
+          } else if (selectedProjectAudio?.name) {
+            // Last resort: construct URL from name (shouldn't happen for project audio)
+            audioUrl = getAudioUrl(selectedProjectAudio.name);
+            audioName = selectedProjectAudio.name || selectedProjectAudio.metadata?.name || selectedProjectAudio.metadata?.filename || 'Audio file';
+            // Use MIME type from MediaItem if available
+            if (selectedProjectAudio.mime_type) {
+              audioType = selectedProjectAudio.mime_type;
+            }
+            console.warn('WARNING: Falling back to getAudioUrl() - selectedProjectAudio.url is missing!', {
+              name: selectedProjectAudio.name,
+              constructedUrl: audioUrl
+            });
+          } else if (audioAttachment?.name) {
+            // Last resort: construct URL from audioAttachment name
+            audioUrl = getAudioUrl(audioAttachment.name);
+            audioName = audioAttachment.name || 'Audio file';
+            console.warn('WARNING: Falling back to getAudioUrl() from audioAttachment.name', {
+              name: audioAttachment.name,
+              constructedUrl: audioUrl
+            });
           }
         } else if (voiceSource === 'recorded') {
           // For recorded audio, check both audioAttachment and recordedAudio
@@ -237,8 +283,53 @@ export function AudioSourceSelector({ readOnly = false }: { readOnly?: boolean }
                     {audioName}
                   </p>
                 </div>
-                <audio controls className="h-8 ml-3">
+                <audio 
+                  controls 
+                  className="h-8 ml-3" 
+                  key={audioUrl}
+                  preload="metadata"
+                  onError={(e) => {
+                    const audioEl = e.currentTarget;
+                    const error = audioEl.error;
+                    console.error('Audio loading error:', {
+                      url: audioUrl,
+                      networkState: audioEl.networkState,
+                      readyState: audioEl.readyState,
+                      error: error,
+                      errorMessage: error?.message,
+                      errorCode: error?.code
+                    });
+                    // Try to reload if it's a network error (code 2 = MEDIA_ERR_NETWORK)
+                    if (error && error.code === 2) {
+                      console.log('Network error detected, attempting reload...');
+                      setTimeout(() => {
+                        audioEl.load();
+                      }, 1000);
+                    }
+                  }}
+                  onLoadStart={() => {
+                    console.log('Audio load started:', audioUrl);
+                  }}
+                  onCanPlay={() => {
+                    console.log('Audio can play:', audioUrl);
+                  }}
+                  onLoadedMetadata={(e) => {
+                    console.log('Audio metadata loaded:', audioUrl, {
+                      duration: e.currentTarget.duration
+                    });
+                  }}
+                  onLoadedData={() => {
+                    console.log('Audio data loaded:', audioUrl);
+                  }}
+                  onStalled={() => {
+                    console.warn('Audio stalled:', audioUrl);
+                  }}
+                  onSuspend={() => {
+                    console.warn('Audio suspended:', audioUrl);
+                  }}
+                >
                   <source src={audioUrl} type={audioType} />
+                  Your browser does not support the audio element.
                 </audio>
               </div>
             </div>
