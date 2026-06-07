@@ -5,6 +5,7 @@ export type Account = { credential_uuid: string; label: string };
 
 export type CredentialRecord = {
   api_credentials_uuid: string;
+  name?: string | null;
   created_at?: string;
 };
 
@@ -17,6 +18,9 @@ export function formatCredentialLabel(
   credential: CredentialRecord,
   index: number
 ): string {
+  if (credential.name?.trim()) {
+    return credential.name.trim();
+  }
   if (credential.created_at) {
     const date = new Date(credential.created_at);
     const formatted = date.toLocaleDateString(undefined, {

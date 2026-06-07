@@ -12,6 +12,7 @@ export type ApiCredential = {
   organization_uuid: string;
   provider: string;
   key_encrypted: Buffer;
+  name: string | null;
   created_at: string;
 };
 
@@ -25,6 +26,7 @@ export type JobRequest = {
   created_at: string;
   updated_at: string;
   metadata: any;
+  api_credentials_uuid: string | null;
 };
 
 // Database type
