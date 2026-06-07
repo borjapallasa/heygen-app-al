@@ -58,7 +58,7 @@ export function HeyGenAccountPickerModal({
           </p>
         </div>
 
-        <div className="space-y-2 mb-4">
+        <div className="space-y-4 mb-4">
           {accounts.map((account) => (
             <button
               key={account.credential_uuid}
