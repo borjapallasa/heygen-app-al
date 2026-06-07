@@ -1,11 +1,13 @@
 "use client";
 import React, { useState } from "react";
-import { useAppState } from "@/src/state/AppStateProvider";
+import { X } from "lucide-react";
 import { logService } from "@/src/services/logService";
 
 type ApiKeyModalProps = {
   organizationId: string;
   onSuccess: (apiKey: string) => void;
+  /** When provided, shows a close button (e.g. optional "Add account" flow). Omitted at required init. */
+  onCancel?: () => void;
 };
 
 /**
@@ -14,7 +16,7 @@ type ApiKeyModalProps = {
  * Allows user to enter and validate their HeyGen API key
  * Saves encrypted API key to database on success
  */
-export function ApiKeyModal({ organizationId, onSuccess }: ApiKeyModalProps) {
+export function ApiKeyModal({ organizationId, onSuccess, onCancel }: ApiKeyModalProps) {
   const [apiKey, setApiKey] = useState("");
   const [isValidating, setIsValidating] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -75,13 +77,26 @@ export function ApiKeyModal({ organizationId, onSuccess }: ApiKeyModalProps) {
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
       <div className="bg-white rounded-lg shadow-xl max-w-md w-full p-6">
-        <div className="mb-4">
-          <h2 className="text-2xl font-bold text-gray-900 mb-2">
-            HeyGen API Key Required
-          </h2>
-          <p className="text-gray-600 text-sm">
-            To use this app, you need to provide your HeyGen API key. Your key will be encrypted and stored securely.
-          </p>
+        <div className="mb-4 flex items-start justify-between gap-3">
+          <div className="min-w-0 flex-1">
+            <h2 className="text-2xl font-bold text-gray-900 mb-2">
+              HeyGen API Key Required
+            </h2>
+            <p className="text-gray-600 text-sm">
+              To use this app, you need to provide your HeyGen API key. Your key will be encrypted and stored securely.
+            </p>
+          </div>
+          {onCancel && (
+            <button
+              type="button"
+              onClick={onCancel}
+              disabled={isValidating}
+              aria-label="Close"
+              className="shrink-0 p-1 rounded-md text-gray-400 hover:text-gray-600 hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          )}
         </div>
 
         <form onSubmit={handleSubmit}>

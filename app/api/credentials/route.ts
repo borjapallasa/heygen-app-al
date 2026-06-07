@@ -4,8 +4,7 @@ import { encrypt } from '@/src/lib/encryption';
 
 /**
  * GET /api/credentials?org_uuid={uuid}&provider={provider}
- * Check if API credentials exist for organization
- * Does NOT return the decrypted key (use /api/credentials/decrypt for that)
+ * Returns all API credentials for organization (metadata only, not decrypted keys)
  */
 export async function GET(request: NextRequest) {
   try {
@@ -26,23 +25,17 @@ export async function GET(request: NextRequest) {
       .select('api_credentials_uuid, organization_uuid, provider, created_at')
       .eq('organization_uuid', orgUuid)
       .eq('provider', provider)
-      .single();
+      .order('created_at', { ascending: true });
 
-    if (error) {
-      if (error.code === 'PGRST116') {
-        // Not found
-        return NextResponse.json({
-          exists: false,
-          organization_uuid: orgUuid,
-          provider
-        });
-      }
-      throw error;
-    }
+    if (error) throw error;
+
+    const credentials = data ?? [];
 
     return NextResponse.json({
-      exists: true,
-      credential: data
+      exists: credentials.length > 0,
+      credentials,
+      organization_uuid: orgUuid,
+      provider
     });
   } catch (error: any) {
     console.error('Error checking API credentials:', error);
@@ -55,13 +48,7 @@ export async function GET(request: NextRequest) {
 
 /**
  * POST /api/credentials
- * Store new API key (encrypted)
- *
- * Body: {
- *   organization_uuid: string,
- *   provider: string (default: 'heygen'),
- *   api_key: string (plain text, will be encrypted)
- * }
+ * Store new API key (encrypted). Always inserts a new credential row.
  */
 export async function POST(request: NextRequest) {
   try {
@@ -82,7 +69,6 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Verify organization exists
     const supabase = supabaseServer();
     const { data: org } = await supabase
       .from('organizations')
@@ -97,40 +83,9 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Encrypt the API key
     const keyEncrypted = encrypt(api_key);
-
-    // Convert Buffer to hex string for PostgreSQL bytea
-    // PostgreSQL expects bytea in format: \x[hexstring]
     const keyEncryptedHex = '\\x' + keyEncrypted.toString('hex');
 
-    // Check if credentials already exist
-    const { data: existing } = await supabase
-      .from('api_credentials')
-      .select('api_credentials_uuid')
-      .eq('organization_uuid', organization_uuid)
-      .eq('provider', provider)
-      .single();
-
-    if (existing) {
-      // Update existing credentials
-      const { data, error } = await supabase
-        .from('api_credentials')
-        .update({ key_encrypted: keyEncryptedHex })
-        .eq('api_credentials_uuid', existing.api_credentials_uuid)
-        .select('api_credentials_uuid, organization_uuid, provider, created_at')
-        .single();
-
-      if (error) throw error;
-
-      return NextResponse.json({
-        success: true,
-        credential: data,
-        updated: true
-      });
-    }
-
-    // Insert new credentials
     const { data, error } = await supabase
       .from('api_credentials')
       .insert({
@@ -158,14 +113,15 @@ export async function POST(request: NextRequest) {
 }
 
 /**
- * DELETE /api/credentials?org_uuid={uuid}&provider={provider}
- * Delete API credentials for organization
+ * DELETE /api/credentials?org_uuid={uuid}&provider={provider}&credential_uuid={uuid}
+ * Deletes credentials for organization. Optional credential_uuid targets one row.
  */
 export async function DELETE(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
     const orgUuid = searchParams.get('org_uuid');
     const provider = searchParams.get('provider') || 'heygen';
+    const credentialUuid = searchParams.get('credential_uuid');
 
     if (!orgUuid) {
       return NextResponse.json(
@@ -175,11 +131,17 @@ export async function DELETE(request: NextRequest) {
     }
 
     const supabase = supabaseServer();
-    const { error } = await supabase
+    let query = supabase
       .from('api_credentials')
       .delete()
       .eq('organization_uuid', orgUuid)
       .eq('provider', provider);
+
+    if (credentialUuid) {
+      query = query.eq('api_credentials_uuid', credentialUuid);
+    }
+
+    const { error } = await query;
 
     if (error) throw error;
 
