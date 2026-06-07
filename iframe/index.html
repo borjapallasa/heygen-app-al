@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>HeyGen Test Parent</title>
+  <style>
+    body { margin: 0; font-family: system-ui, sans-serif; }
+    header {
+      padding: 12px 16px;
+      background: #0f172a;
+      color: #f8fafc;
+      font-size: 14px;
+    }
+    #status { opacity: 0.85; }
+    iframe { display: block; width: 100%; height: calc(100vh - 48px); border: 0; }
+  </style>
+</head>
+<body>
+  <header>
+    <strong>HeyGen iframe test parent</strong>
+    <span id="status"> — waiting for READY…</span>
+  </header>
+  <iframe id="heygen" src="http://localhost:3000" title="HeyGen App"></iframe>
+  <script>
+    // Must match DEFAULT_ORG_UUID in .env (or any valid org UUID in Supabase)
+    const ORG_ID = '5ec92adf-57cb-4d08-817a-f523cc308cda';
+    const IFRAME_ORIGIN = 'http://localhost:3000';
+
+    const iframe = document.getElementById('heygen');
+    const status = document.getElementById('status');
+
+    window.addEventListener('message', (event) => {
+      const message = event.data;
+      if (!message || message.type !== 'READY') return;
+
+      status.textContent = ' — READY received, sending INIT…';
+
+      const payload = {
+        projectId: 'test-project-1',
+        organizationId: ORG_ID,
+        userId: 'test-user',
+        appInstallationId: 'test-install',
+        permissions: [],
+        settings: {},
+        project: {
+          uuid: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
+          name: 'Test Project',
+          status: 'active',
+          content: '<p>Hello from test parent</p>',
+          organization_uuid: ORG_ID,
+          media: []
+        }
+      };
+
+      iframe.contentWindow.postMessage(
+        { type: 'INIT', payload, timestamp: Date.now() },
+        IFRAME_ORIGIN
+      );
+
+      status.textContent = ' — INIT sent (org: ' + ORG_ID + ')';
+      console.log('[Test Parent] Sent INIT', payload);
+    });
+  </script>
+</body>
+</html>

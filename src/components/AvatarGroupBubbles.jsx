@@ -1,9 +1,13 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
+import { Settings } from "lucide-react";
 import { useAppState } from "@/src/state/AppStateProvider";
 import { VIEW, HEYGEN } from "@/src/lib/constants";
 import { stripHtml, getAudioUrl } from "@/src/lib/utils";
+import HeyGenAccountPickerModal from "@/src/components/HeyGenAccountPickerModal";
+import AccountSettingsScreen from "@/src/features/settings/AccountSettingsScreen";
+import { logService } from "@/src/services/logService";
 
 // hooks
 import useHeygenGroups from "@/src/hooks/useHeygenGroups";
@@ -53,11 +57,57 @@ export default function AvatarGroupBubbles() {
     contentAttachment,
     setContentAttachment,
     audioAttachment: globalAudioAttachment,
-    setAudioAttachment: setGlobalAudioAttachment
+    setAudioAttachment: setGlobalAudioAttachment,
+    showAccountSettings,
+    setShowAccountSettings,
+    showAccountPicker,
+    setShowAccountPicker,
+    availableAccounts,
+    setSelectedCredentialUuid,
+    setApiKey
   } = useAppState(); // ensures API key exists before fetching
 
-  // No API key yet: show the same friendly gate
+  const handleMidSessionAccountSelect = async (credentialUuid) => {
+    if (!parentData?.organizationId) return;
+
+    setShowAccountPicker(false);
+    setSelectedCredentialUuid(credentialUuid);
+
+    try {
+      const response = await fetch("/api/credentials/decrypt", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          organization_uuid: parentData.organizationId,
+          provider: "heygen",
+          credential_uuid: credentialUuid
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error("Failed to decrypt API key");
+      }
+
+      const { api_key } = await response.json();
+      setApiKey(api_key);
+      logService.info("API key loaded after account re-selection");
+    } catch (err) {
+      logService.error("Failed to load selected account", { error: err });
+      setShowAccountPicker(true);
+    }
+  };
+
+  // No API key yet: show picker if re-selecting, otherwise gate
   if (!client) {
+    if (showAccountPicker && availableAccounts.length > 0) {
+      return (
+        <HeyGenAccountPickerModal
+          accounts={availableAccounts}
+          onSelect={handleMidSessionAccountSelect}
+        />
+      );
+    }
+
     return (
       <div className="min-h-screen bg-white flex items-center justify-center">
         <div className="flex flex-col items-center">
@@ -275,6 +325,13 @@ export default function AvatarGroupBubbles() {
 
   return (
     <div className="min-h-screen bg-white">
+      {showAccountSettings && <AccountSettingsScreen />}
+      {showAccountPicker && availableAccounts.length > 0 && (
+        <HeyGenAccountPickerModal
+          accounts={availableAccounts}
+          onSelect={handleMidSessionAccountSelect}
+        />
+      )}
       <div className="relative w-full max-w-6xl mx-auto p-6">
         {/* HOME */}
         <section
@@ -283,7 +340,17 @@ export default function AvatarGroupBubbles() {
             view === VIEW.HOME ? "opacity-100 translate-y-0 pointer-events-auto relative" : "opacity-0 -translate-y-1 pointer-events-none absolute inset-0"
           }`}
         >
-          <h1 className="text-3xl font-bold text-slate-900 mb-2">Avatars</h1>
+          <div className="flex items-center justify-between mb-2">
+            <h1 className="text-3xl font-bold text-slate-900">Avatars</h1>
+            <button
+              type="button"
+              onClick={() => setShowAccountSettings(true)}
+              aria-label="Manage HeyGen accounts"
+              className="inline-flex items-center justify-center w-10 h-10 rounded-full border border-slate-200 hover:bg-slate-50 text-slate-700"
+            >
+              <Settings className="w-5 h-5" />
+            </button>
+          </div>
           {groupsError ? (
             <BannerError msg={groupsError} />
           ) : (

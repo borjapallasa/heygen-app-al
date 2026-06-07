@@ -4,20 +4,12 @@ import { decrypt } from '@/src/lib/encryption';
 
 /**
  * POST /api/credentials/decrypt
- * Decrypt and return API key for organization
- *
- * Body: {
- *   organization_uuid: string,
- *   provider: string (default: 'heygen')
- * }
- *
- * SECURITY NOTE: This endpoint should only be called server-side
- * or with proper authentication in production
+ * Decrypt and return API key for organization (optionally by credential_uuid)
  */
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { organization_uuid, provider = 'heygen' } = body;
+    const { organization_uuid, provider = 'heygen', credential_uuid } = body;
 
     if (!organization_uuid) {
       return NextResponse.json(
@@ -27,12 +19,17 @@ export async function POST(request: NextRequest) {
     }
 
     const supabase = supabaseServer();
-    const { data, error } = await supabase
+    let query = supabase
       .from('api_credentials')
       .select('key_encrypted')
       .eq('organization_uuid', organization_uuid)
-      .eq('provider', provider)
-      .single();
+      .eq('provider', provider);
+
+    if (credential_uuid) {
+      query = query.eq('api_credentials_uuid', credential_uuid);
+    }
+
+    const { data, error } = await query.single();
 
     if (error) {
       if (error.code === 'PGRST116') {
@@ -44,21 +41,13 @@ export async function POST(request: NextRequest) {
       throw error;
     }
 
-    // Decrypt the key
-    // Supabase returns bytea as hex string with \x prefix
-    console.log('Encrypted data type:', typeof data.key_encrypted);
-    console.log('Encrypted data sample:', typeof data.key_encrypted === 'string' ? data.key_encrypted.substring(0, 20) : data.key_encrypted);
-
     let encryptedBuffer: Buffer;
 
     if (typeof data.key_encrypted === 'string') {
-      // Supabase returns bytea as hex string with \x prefix (e.g., "\\x1a2b3c...")
       if (data.key_encrypted.startsWith('\\x')) {
-        // Remove \x prefix and convert from hex
         const hexString = data.key_encrypted.slice(2);
         encryptedBuffer = Buffer.from(hexString, 'hex');
       } else {
-        // Try base64 as fallback
         encryptedBuffer = Buffer.from(data.key_encrypted, 'base64');
       }
     } else if (data.key_encrypted instanceof Uint8Array || Array.isArray(data.key_encrypted)) {
@@ -66,8 +55,6 @@ export async function POST(request: NextRequest) {
     } else {
       throw new Error(`Unexpected encrypted data type: ${typeof data.key_encrypted}`);
     }
-
-    console.log('Buffer length:', encryptedBuffer.length);
 
     const apiKey = decrypt(encryptedBuffer);
 
