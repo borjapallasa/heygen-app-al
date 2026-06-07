@@ -61,7 +61,8 @@ export async function GET(request: NextRequest) {
  *   status?: string (default: 'pending'),
  *   metadata?: object,
  *   project_uuid?: string,
- *   media_uuid?: string
+ *   media_uuid?: string,
+ *   api_credentials_uuid?: string
  * }
  */
 export async function POST(request: NextRequest) {
@@ -75,7 +76,8 @@ export async function POST(request: NextRequest) {
       status = 'pending',
       metadata,
       project_uuid,
-      media_uuid
+      media_uuid,
+      api_credentials_uuid
     } = body;
 
     if (!organization_uuid) {
@@ -109,6 +111,22 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    if (api_credentials_uuid) {
+      const { data: credential, error: credentialError } = await supabase
+        .from('api_credentials')
+        .select('api_credentials_uuid')
+        .eq('api_credentials_uuid', api_credentials_uuid)
+        .eq('organization_uuid', organization_uuid)
+        .single();
+
+      if (credentialError || !credential) {
+        return NextResponse.json(
+          { error: 'Invalid api_credentials_uuid for this organization' },
+          { status: 400 }
+        );
+      }
+    }
+
     // Create job request
     const { data, error } = await supabase
       .from('job_requests')
@@ -120,7 +138,8 @@ export async function POST(request: NextRequest) {
         status,
         metadata: metadata || {},
         project_uuid: project_uuid || null,
-        media_uuid: media_uuid || null
+        media_uuid: media_uuid || null,
+        api_credentials_uuid: api_credentials_uuid || null
       })
       .select()
       .single();

@@ -26,6 +26,9 @@ export function AccountSettingsScreen() {
   const [showApiKeyModal, setShowApiKeyModal] = useState(false);
   const [confirmDeleteUuid, setConfirmDeleteUuid] = useState<string | null>(null);
   const [switchingUuid, setSwitchingUuid] = useState<string | null>(null);
+  const [editingUuid, setEditingUuid] = useState<string | null>(null);
+  const [editingName, setEditingName] = useState("");
+  const [savingNameUuid, setSavingNameUuid] = useState<string | null>(null);
 
   const organizationId = parentData?.organizationId;
 
@@ -92,6 +95,57 @@ export function AccountSettingsScreen() {
     }
   };
 
+  const handleRename = async (credentialUuid: string) => {
+    if (!organizationId) return;
+
+    const trimmedName = editingName.trim();
+    if (!trimmedName) {
+      setError("Account name is required");
+      return;
+    }
+
+    setSavingNameUuid(credentialUuid);
+    setError(null);
+
+    try {
+      const response = await fetch("/api/credentials", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          organization_uuid: organizationId,
+          credential_uuid: credentialUuid,
+          provider: "heygen",
+          name: trimmedName
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error("Failed to rename account");
+      }
+
+      const { credential } = await response.json();
+
+      await fetchCredentials();
+      setEditingUuid(null);
+      setEditingName("");
+
+      const listResponse = await fetch(
+        `/api/credentials?org_uuid=${organizationId}&provider=heygen`
+      );
+      if (listResponse.ok) {
+        const listData = await listResponse.json();
+        setAvailableAccounts(mapCredentialsToAccounts(listData.credentials ?? []));
+      }
+
+      logService.info("Renamed HeyGen account", { credentialUuid: credential.api_credentials_uuid });
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : "Failed to rename account";
+      setError(message);
+    } finally {
+      setSavingNameUuid(null);
+    }
+  };
+
   const handleDelete = async (credentialUuid: string) => {
     if (!organizationId) return;
 
@@ -137,12 +191,10 @@ export function AccountSettingsScreen() {
     }
   };
 
-  const handleAddSuccess = (apiKey: string) => {
+  const handleAddSuccess = (_apiKey: string, _credentialUuid: string) => {
     setShowApiKeyModal(false);
     fetchCredentials();
     logService.info("Added HeyGen account from settings");
-    // Keep current active account unchanged (spec: optional auto-select)
-    void apiKey;
   };
 
   const accounts = mapCredentialsToAccounts(credentials);
@@ -172,6 +224,9 @@ export function AccountSettingsScreen() {
               const isConfirming = confirmDeleteUuid === account.credential_uuid;
               const isSwitching = switchingUuid === account.credential_uuid;
 
+              const isEditing = editingUuid === account.credential_uuid;
+              const isSavingName = savingNameUuid === account.credential_uuid;
+
               return (
                 <li
                   key={account.credential_uuid}
@@ -179,22 +234,68 @@ export function AccountSettingsScreen() {
                     isActive ? "border-blue-500 bg-blue-50" : "border-gray-200 bg-white"
                   }`}
                 >
-                  <button
-                    type="button"
-                    disabled={isActive || isSwitching}
-                    onClick={() => handleSwitch(account.credential_uuid)}
-                    className="flex-1 text-left disabled:cursor-default"
-                  >
-                    <span className="font-medium text-gray-900">{account.label}</span>
-                    {isActive && (
-                      <span className="ml-2 text-xs font-semibold text-blue-600 uppercase">
-                        Active
-                      </span>
+                  <div className="flex-1 min-w-0">
+                    {isEditing ? (
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="text"
+                          value={editingName}
+                          onChange={(e) => setEditingName(e.target.value)}
+                          className="flex-1 min-w-0 px-2 py-1 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          disabled={isSavingName}
+                        />
+                        <button
+                          type="button"
+                          onClick={() => handleRename(account.credential_uuid)}
+                          disabled={isSavingName}
+                          className="text-xs font-semibold text-blue-600 hover:text-blue-700 shrink-0"
+                        >
+                          {isSavingName ? "Saving…" : "Save"}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setEditingUuid(null);
+                            setEditingName("");
+                          }}
+                          disabled={isSavingName}
+                          className="text-xs text-gray-500 hover:text-gray-700 shrink-0"
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    ) : (
+                      <button
+                        type="button"
+                        disabled={isActive || isSwitching}
+                        onClick={() => handleSwitch(account.credential_uuid)}
+                        className="w-full text-left disabled:cursor-default"
+                      >
+                        <span className="font-medium text-gray-900">{account.label}</span>
+                        {isActive && (
+                          <span className="ml-2 text-xs font-semibold text-blue-600 uppercase">
+                            Active
+                          </span>
+                        )}
+                        {isSwitching && (
+                          <span className="ml-2 text-xs text-gray-500">Switching…</span>
+                        )}
+                      </button>
                     )}
-                    {isSwitching && (
-                      <span className="ml-2 text-xs text-gray-500">Switching…</span>
-                    )}
-                  </button>
+                  </div>
+
+                  {!isEditing && (
+                    <div className="flex items-center gap-3 shrink-0">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setEditingUuid(account.credential_uuid);
+                          setEditingName(account.label);
+                        }}
+                        className="text-xs font-semibold text-gray-600 hover:text-gray-800"
+                      >
+                        Rename
+                      </button>
 
                   {isConfirming ? (
                     <div className="flex items-center gap-2 shrink-0">
@@ -222,6 +323,8 @@ export function AccountSettingsScreen() {
                     >
                       Delete
                     </button>
+                  )}
+                    </div>
                   )}
                 </li>
               );

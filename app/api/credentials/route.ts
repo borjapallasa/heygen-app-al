@@ -22,7 +22,7 @@ export async function GET(request: NextRequest) {
     const supabase = supabaseServer();
     const { data, error } = await supabase
       .from('api_credentials')
-      .select('api_credentials_uuid, organization_uuid, provider, created_at')
+      .select('api_credentials_uuid, organization_uuid, provider, name, created_at')
       .eq('organization_uuid', orgUuid)
       .eq('provider', provider)
       .order('created_at', { ascending: true });
@@ -53,7 +53,7 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { organization_uuid, provider = 'heygen', api_key } = body;
+    const { organization_uuid, provider = 'heygen', api_key, name } = body;
 
     if (!organization_uuid) {
       return NextResponse.json(
@@ -86,14 +86,23 @@ export async function POST(request: NextRequest) {
     const keyEncrypted = encrypt(api_key);
     const keyEncryptedHex = '\\x' + keyEncrypted.toString('hex');
 
+    const trimmedName = typeof name === 'string' ? name.trim() : '';
+    if (!trimmedName) {
+      return NextResponse.json(
+        { error: 'name is required' },
+        { status: 400 }
+      );
+    }
+
     const { data, error } = await supabase
       .from('api_credentials')
       .insert({
         organization_uuid,
         provider,
-        key_encrypted: keyEncryptedHex
+        key_encrypted: keyEncryptedHex,
+        name: trimmedName
       })
-      .select('api_credentials_uuid, organization_uuid, provider, created_at')
+      .select('api_credentials_uuid, organization_uuid, provider, name, created_at')
       .single();
 
     if (error) throw error;
@@ -105,6 +114,75 @@ export async function POST(request: NextRequest) {
     }, { status: 201 });
   } catch (error: any) {
     console.error('Error saving API credentials:', error);
+    return NextResponse.json(
+      { error: error.message || 'Internal server error' },
+      { status: 500 }
+    );
+  }
+}
+
+/**
+ * PATCH /api/credentials
+ * Rename an API credential
+ *
+ * Body: {
+ *   organization_uuid: string,
+ *   credential_uuid: string,
+ *   name: string,
+ *   provider?: string (default: 'heygen')
+ * }
+ */
+export async function PATCH(request: NextRequest) {
+  try {
+    const body = await request.json();
+    const {
+      organization_uuid,
+      credential_uuid,
+      name,
+      provider = 'heygen'
+    } = body;
+
+    if (!organization_uuid || !credential_uuid) {
+      return NextResponse.json(
+        { error: 'organization_uuid and credential_uuid are required' },
+        { status: 400 }
+      );
+    }
+
+    const trimmedName = typeof name === 'string' ? name.trim() : '';
+    if (!trimmedName) {
+      return NextResponse.json(
+        { error: 'name is required' },
+        { status: 400 }
+      );
+    }
+
+    const supabase = supabaseServer();
+    const { data, error } = await supabase
+      .from('api_credentials')
+      .update({ name: trimmedName })
+      .eq('organization_uuid', organization_uuid)
+      .eq('provider', provider)
+      .eq('api_credentials_uuid', credential_uuid)
+      .select('api_credentials_uuid, organization_uuid, provider, name, created_at')
+      .single();
+
+    if (error) {
+      if (error.code === 'PGRST116') {
+        return NextResponse.json(
+          { error: 'API credentials not found' },
+          { status: 404 }
+        );
+      }
+      throw error;
+    }
+
+    return NextResponse.json({
+      success: true,
+      credential: data
+    });
+  } catch (error: any) {
+    console.error('Error renaming API credentials:', error);
     return NextResponse.json(
       { error: error.message || 'Internal server error' },
       { status: 500 }

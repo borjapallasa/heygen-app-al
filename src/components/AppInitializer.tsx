@@ -243,11 +243,12 @@ export function AppInitializer() {
     setPendingDecrypt(true);
   };
 
-  const handleApiKeySuccess = (key: string) => {
+  const handleApiKeySuccess = (key: string, credentialUuid: string) => {
     setApiKey(key);
     setHasApiKey(true);
+    setSelectedCredentialUuid(credentialUuid);
     setShowApiKeyModal(false);
-    logService.info("API key set successfully from modal");
+    logService.info("API key set successfully from modal", { credentialUuid });
   };
 
   if (error) {

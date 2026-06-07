@@ -5,7 +5,7 @@ import { logService } from "@/src/services/logService";
 
 type ApiKeyModalProps = {
   organizationId: string;
-  onSuccess: (apiKey: string) => void;
+  onSuccess: (apiKey: string, credentialUuid: string) => void;
   /** When provided, shows a close button (e.g. optional "Add account" flow). Omitted at required init. */
   onCancel?: () => void;
 };
@@ -17,6 +17,7 @@ type ApiKeyModalProps = {
  * Saves encrypted API key to database on success
  */
 export function ApiKeyModal({ organizationId, onSuccess, onCancel }: ApiKeyModalProps) {
+  const [accountName, setAccountName] = useState("");
   const [apiKey, setApiKey] = useState("");
   const [isValidating, setIsValidating] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -26,6 +27,11 @@ export function ApiKeyModal({ organizationId, onSuccess, onCancel }: ApiKeyModal
 
     if (!apiKey.trim()) {
       setError("Please enter your HeyGen API key");
+      return;
+    }
+
+    if (!accountName.trim()) {
+      setError("Please enter an account name");
       return;
     }
 
@@ -54,7 +60,8 @@ export function ApiKeyModal({ organizationId, onSuccess, onCancel }: ApiKeyModal
         body: JSON.stringify({
           organization_uuid: organizationId,
           provider: "heygen",
-          api_key: apiKey
+          api_key: apiKey,
+          name: accountName.trim()
         })
       });
 
@@ -63,8 +70,15 @@ export function ApiKeyModal({ organizationId, onSuccess, onCancel }: ApiKeyModal
         throw new Error(errorData.error || "Failed to save API key");
       }
 
+      const saveData = await saveResponse.json();
+      const credentialUuid = saveData.credential?.api_credentials_uuid;
+
+      if (!credentialUuid) {
+        throw new Error("Failed to save API key");
+      }
+
       logService.info("HeyGen API key validated and saved successfully");
-      onSuccess(apiKey);
+      onSuccess(apiKey, credentialUuid);
     } catch (err: any) {
       const errorMessage = err.message || "Failed to validate API key";
       logService.error("API key validation failed", { error: errorMessage });
@@ -102,6 +116,24 @@ export function ApiKeyModal({ organizationId, onSuccess, onCancel }: ApiKeyModal
         <form onSubmit={handleSubmit}>
           <div className="mb-4">
             <label
+              htmlFor="accountName"
+              className="block text-sm font-medium text-gray-700 mb-2"
+            >
+              Account name
+            </label>
+            <input
+              type="text"
+              id="accountName"
+              value={accountName}
+              onChange={(e) => setAccountName(e.target.value)}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              placeholder="e.g. Marketing, Production"
+              disabled={isValidating}
+            />
+          </div>
+
+          <div className="mb-4">
+            <label
               htmlFor="apiKey"
               className="block text-sm font-medium text-gray-700 mb-2"
             >
@@ -134,7 +166,7 @@ export function ApiKeyModal({ organizationId, onSuccess, onCancel }: ApiKeyModal
 
           <button
             type="submit"
-            disabled={isValidating || !apiKey.trim()}
+            disabled={isValidating || !apiKey.trim() || !accountName.trim()}
             className="w-full bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors font-semibold text-base shadow-md"
           >
               {isValidating ? (

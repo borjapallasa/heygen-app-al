@@ -63,6 +63,7 @@ export default function AvatarGroupBubbles() {
     showAccountPicker,
     setShowAccountPicker,
     availableAccounts,
+    selectedCredentialUuid,
     setSelectedCredentialUuid,
     setApiKey
   } = useAppState(); // ensures API key exists before fetching
@@ -185,6 +186,10 @@ export default function AvatarGroupBubbles() {
         throw new Error('No avatars selected');
       }
 
+      if (!selectedCredentialUuid) {
+        throw new Error('No HeyGen account selected');
+      }
+
       // Check if audio is available (audio can be used without script)
       const hasAudio = audioAttachment !== null || voiceSource !== 'heygen';
       
@@ -267,7 +272,8 @@ export default function AvatarGroupBubbles() {
           status: 'pending',
           metadata,
           project_uuid: projectUuid || null,
-          media_uuid: mediaUuid
+          media_uuid: mediaUuid,
+          api_credentials_uuid: selectedCredentialUuid
         })
       });
 

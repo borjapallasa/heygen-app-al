@@ -15,6 +15,7 @@ export interface CreateJobParams {
   callbackUrl?: string;
   status?: JobStatus;
   metadata?: any;
+  apiCredentialsUuid?: string;
 }
 
 /**
