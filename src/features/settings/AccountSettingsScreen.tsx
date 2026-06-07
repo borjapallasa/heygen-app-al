@@ -218,7 +218,7 @@ export function AccountSettingsScreen() {
         ) : accounts.length === 0 ? (
           <p className="text-gray-500 text-sm mb-4">No HeyGen accounts saved yet.</p>
         ) : (
-          <ul className="space-y-2 mb-6">
+          <ul className="space-y-4 mb-6">
             {accounts.map((account) => {
               const isActive = account.credential_uuid === selectedCredentialUuid;
               const isConfirming = confirmDeleteUuid === account.credential_uuid;

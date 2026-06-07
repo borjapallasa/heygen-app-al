@@ -8,7 +8,6 @@ import LoadingScreen from "./LoadingScreen";
 import ApiKeyModal from "./ApiKeyModal";
 import AppRoot from "./AppRoot";
 import HeyGenAccountPickerModal, {
-  mapCredentialsToAccounts,
   type CredentialRecord
 } from "./HeyGenAccountPickerModal";
 
@@ -157,16 +156,14 @@ export function AppInitializer() {
         if (list.length === 0) {
           logService.info("No API key found, showing modal");
           setShowApiKeyModal(true);
-        } else if (list.length === 1) {
-          logService.info("Single API key found, auto-selecting");
-          setSelectedCredentialUuid(list[0].api_credentials_uuid);
-          setPendingDecrypt(true);
         } else {
-          logService.info("Multiple API keys found, showing picker", {
+          const oldest = list[0];
+          logService.info("Auto-selecting oldest HeyGen account", {
+            credentialUuid: oldest.api_credentials_uuid,
             count: list.length
           });
-          setAvailableAccounts(mapCredentialsToAccounts(list));
-          setShowAccountPicker(true);
+          setSelectedCredentialUuid(oldest.api_credentials_uuid);
+          setPendingDecrypt(true);
         }
       } catch (err: unknown) {
         const errorMsg = err instanceof Error ? err.message : "Failed to initialize app";
