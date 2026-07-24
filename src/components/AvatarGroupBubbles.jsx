@@ -29,6 +29,7 @@ import FloaterBar from "@/src/features/compose/FloaterBar";
 import RecorderOverlay from "@/src/features/compose/RecorderOverlay";
 import ScriptSourceSelector from "@/src/features/compose/ScriptSourceSelector";
 import AudioSourceSelector from "@/src/features/compose/AudioSourceSelector";
+import AvatarModelSelector from "@/src/features/compose/AvatarModelSelector";
 
 // videos UI (already uses useHeygenVideos inside)
 import VideosPane from "@/src/features/videos/VideosPane";
@@ -65,7 +66,9 @@ export default function AvatarGroupBubbles() {
     availableAccounts,
     selectedCredentialUuid,
     setSelectedCredentialUuid,
-    setApiKey
+    setApiKey,
+    avatarModel,
+    setAvatarModel
   } = useAppState(); // ensures API key exists before fetching
 
   const handleMidSessionAccountSelect = async (credentialUuid) => {
@@ -247,6 +250,7 @@ export default function AvatarGroupBubbles() {
         scriptSource,
         script,
         voiceSource,
+        avatarModel,
         audioUrl: voiceSource === 'project_audio' ? selectedProjectAudio?.url :
                   voiceSource === 'recorded' ? uploadedAudioUrl : null,
         audioName: voiceSource === 'project_audio' ? selectedProjectAudio?.name :
@@ -463,6 +467,11 @@ export default function AvatarGroupBubbles() {
 
           <div className="flex justify-center pb-8">
             <div className="w-full max-w-2xl space-y-6">
+              {/* Avatar Model Selector - Global for the video(s) generated in this session */}
+              <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+                <AvatarModelSelector />
+              </div>
+
               {/* Determine if audio is selected (audio attachment exists or voice source is not HeyGen) */}
               {(() => {
                 const hasAudioSelected = audioAttachment !== null || voiceSource !== 'heygen';
@@ -580,6 +589,8 @@ export default function AvatarGroupBubbles() {
         {view === VIEW.GROUP && selectedAvatarIds.size > 0 && (
           <FloaterBar
             value={promptText}
+            avatarModel={avatarModel}
+            onAvatarModelChange={setAvatarModel}
             onChange={(v) => {
               setPromptText(v);
               setGlobalPromptText(v); // Also update global state so ScriptSourceSelector can see it
