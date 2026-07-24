@@ -1,6 +1,6 @@
 "use client";
 import React, { createContext, useContext, useMemo, useState } from "react";
-import { VIEW } from "@/src/lib/constants";
+import { VIEW, type AvatarModelId } from "@/src/lib/constants";
 import { createHeygenClient } from "@/src/lib/heygenClient";
 import type { MediaItem } from "@/src/services/postMessageService";
 
@@ -40,6 +40,9 @@ type State = {
   selectedAvatarIds: Set<string>;
   toggleAvatar: (id: string) => void;
   clearSelection: () => void;
+
+  avatarModel: AvatarModelId;
+  setAvatarModel: (m: AvatarModelId) => void;
 
   promptText: string;
   setPromptText: (s: string) => void;
@@ -92,6 +95,8 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
   const [selectedGroup, setSelectedGroup] = useState<Group | null>(null);
   const [selectedAvatarIds, setSelectedAvatarIds] = useState<Set<string>>(new Set());
 
+  const [avatarModel, setAvatarModel] = useState<AvatarModelId>('avatar_iii');
+
   const [promptText, setPromptText] = useState("");
   const [audioAttachment, setAudioAttachment] = useState<AudioItem | null>(null);
   const [contentAttachment, setContentAttachment] = useState<{ type: 'project_content'; name: string } | null>(null);
@@ -131,6 +136,7 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
     showAccountPicker, setShowAccountPicker,
     selectedGroup, setSelectedGroup,
     selectedAvatarIds, toggleAvatar, clearSelection,
+    avatarModel, setAvatarModel,
     promptText, setPromptText,
     audioAttachment, setAudioAttachment,
     contentAttachment, setContentAttachment,
