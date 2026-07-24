@@ -1,7 +1,8 @@
 'use client';
 
 import React, { useState } from 'react';
-import { ArrowRight, ChevronUp, ChevronDown, FileText, Mic, Music2, X } from 'lucide-react';
+import { ArrowRight, ChevronUp, ChevronDown, FileText, Mic, Music2, X, Sparkles } from 'lucide-react';
+import { AVATAR_MODELS } from '@/src/lib/constants';
 
 /**
  * Floating composer bar used on the avatar selection screen.
@@ -29,7 +30,10 @@ export default function FloaterBar({
   onRecordAudio,
   onImportContent,
   onImportAudio,
+  avatarModel,
+  onAvatarModelChange,
 }) {
+  const [modelOpen, setModelOpen] = useState(false);
   // Validate that user has provided content or audio
   const hasContent = (value && value.trim().length > 0) || contentAttachment;
   const hasAudio = audioAttachment !== null;
@@ -63,6 +67,46 @@ export default function FloaterBar({
             placeholder="Write your script"
             className="flex-1 bg-transparent outline-none text-slate-900 placeholder-slate-400 px-2 py-2"
           />
+
+          <div className="relative">
+            <button
+              onClick={() => setModelOpen(!modelOpen)}
+              className="inline-flex items-center gap-1 px-3 py-2 rounded-full border border-slate-300 bg-white hover:bg-slate-50 text-sm text-slate-700"
+              aria-haspopup="menu"
+              aria-expanded={modelOpen}
+            >
+              <Sparkles className="w-4 h-4 text-slate-500" />
+              <span>{AVATAR_MODELS[avatarModel]?.label || 'Avatar Model'}</span>
+              <ChevronUp className="w-4 h-4" />
+            </button>
+
+            {modelOpen && (
+              <div
+                role="menu"
+                className="absolute right-0 bottom-full mb-2 w-56 rounded-xl border border-slate-200 bg-white shadow-xl overflow-hidden"
+              >
+                {Object.values(AVATAR_MODELS).map((model) => (
+                  <button
+                    key={model.id}
+                    className="w-full flex items-center justify-between gap-2 px-3 py-2 hover:bg-slate-50 text-sm text-left"
+                    onClick={() => {
+                      onAvatarModelChange?.(model.id);
+                      setModelOpen(false);
+                    }}
+                    role="menuitem"
+                  >
+                    <span>
+                      <span className="block text-slate-900">{model.label}</span>
+                      <span className="block text-xs text-slate-500">{model.description}</span>
+                    </span>
+                    {avatarModel === model.id && (
+                      <span className="w-2 h-2 rounded-full bg-black flex-shrink-0" />
+                    )}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
 
           <div className="relative">
             <button
