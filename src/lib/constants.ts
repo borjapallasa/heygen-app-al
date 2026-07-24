@@ -12,3 +12,18 @@ export const VIEW = {
   GROUP: 'GROUP',
   REVIEW: 'REVIEW',
 } as const;
+
+export const AVATAR_MODELS = {
+  avatar_iii: {
+    id: 'avatar_iii',
+    label: 'Avatar III',
+    description: 'Modelo estándar, generación más rápida',
+  },
+  avatar_v: {
+    id: 'avatar_v',
+    label: 'Avatar V',
+    description: 'Modelo de última generación, mayor realismo',
+  },
+} as const;
+
+export type AvatarModelId = keyof typeof AVATAR_MODELS;
