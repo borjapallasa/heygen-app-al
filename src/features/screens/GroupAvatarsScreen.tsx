@@ -23,7 +23,9 @@ export default function GroupAvatarsScreen() {
     projectAudio,
     setSelectedProjectAudio,
     contentAttachment,
-    setContentAttachment
+    setContentAttachment,
+    avatarModel,
+    setAvatarModel
   } = useAppState();
   const { avatars, loading, error, fetchForGroup } = useGroupAvatars();
 
@@ -60,6 +62,8 @@ export default function GroupAvatarsScreen() {
       {selectedAvatarIds.size > 0 && (
         <FloaterBar
           value={promptText}
+          avatarModel={avatarModel}
+          onAvatarModelChange={setAvatarModel}
           onChange={(v) => {
             setPromptText(v);
             if (v && audioAttachment) {
