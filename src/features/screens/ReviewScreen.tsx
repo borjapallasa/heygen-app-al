@@ -6,6 +6,7 @@ import { chunkAvatarsForRows, stripHtml } from "@/src/lib/utils";
 import { VIEW } from "@/src/lib/constants";
 import ScriptSourceSelector from "@/src/features/compose/ScriptSourceSelector";
 import AudioSourceSelector from "@/src/features/compose/AudioSourceSelector";
+import AvatarModelSelector from "@/src/features/compose/AvatarModelSelector";
 
 export default function ReviewScreen() {
   const {
@@ -18,7 +19,8 @@ export default function ReviewScreen() {
     scriptSource,
     voiceSource,
     contentAttachment,
-    projectContent
+    projectContent,
+    avatarModel
   } = useAppState();
 
   const [isGenerating, setIsGenerating] = useState(false);
@@ -43,7 +45,8 @@ export default function ReviewScreen() {
         promptText,
         audioAttachment,
         scriptSource,
-        voiceSource
+        voiceSource,
+        avatarModel
       });
     } catch (error) {
       console.error('Failed to generate video:', error);
@@ -66,6 +69,11 @@ export default function ReviewScreen() {
             <div className="text-sm text-slate-600">
               {selectedAvatars.length > 0 ? `${selectedAvatars.length} avatar(s) selected` : 'No avatars selected'}
             </div>
+          </div>
+
+          {/* Avatar Model Selector - Global for the video(s) generated in this session */}
+          <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+            <AvatarModelSelector />
           </div>
 
           {/* Script Section - Only show if audio is NOT selected */}
