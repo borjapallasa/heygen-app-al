@@ -95,7 +95,7 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
   const [selectedGroup, setSelectedGroup] = useState<Group | null>(null);
   const [selectedAvatarIds, setSelectedAvatarIds] = useState<Set<string>>(new Set());
 
-  const [avatarModel, setAvatarModel] = useState<AvatarModelId>('avatar_iii');
+  const [avatarModel, setAvatarModel] = useState<AvatarModelId>('avatar_v');
 
   const [promptText, setPromptText] = useState("");
   const [audioAttachment, setAudioAttachment] = useState<AudioItem | null>(null);
